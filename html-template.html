@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personalized Outreach Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .target-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .results-container {
+            margin-top: 30px;
+        }
+        .spinner-border {
+            display: none;
+        }
+        .loading .spinner-border {
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="mb-4">Personalized Outreach Generator</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add Companies/People</h5>
+                <p class="card-text">Enter the names of companies or people for personalized outreach snippets.</p>
+                
+                <form id="targetForm">
+                    <div class="mb-3">
+                        <label for="targetName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="targetName" placeholder="Enter company or person name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="targetType" id="companyType" value="company" checked>
+                            <label class="form-check-label" for="companyType">Company</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="targetType" id="personType" value="person">
+                            <label class="form-check-label" for="personType">Person</label>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" id="addTarget">Add to List</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Target List</h5>
+                <div id="targetList" class="mb-3">
+                    <div class="text-muted">No targets added yet</div>
+                </div>
+                
+                <button type="button" class="btn btn-success" id="generateBtn">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    Generate Snippets
+                </button>
+            </div>
+        </div>
+        
+        <div class="results-container">
+            <h3>Results</h3>
+            <div id="resultsContainer"></div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const targetForm = document.getElementById('targetForm');
+            const targetName = document.getElementById('targetName');
+            const targetList = document.getElementById('targetList');
+            const addTargetBtn = document.getElementById('addTarget');
+            const generateBtn = document.getElementById('generateBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            let targets = [];
+            
+            function updateTargetList() {
+                if (targets.length === 0) {
+                    targetList.innerHTML = '<div class="text-muted">No targets added yet</div>';
+                    return;
+                }
+                
+                targetList.innerHTML = '';
+                targets.forEach((target, index) => {
+                    const targetItem = document.createElement('div');
+                    targetItem.className = 'target-item d-flex justify-content-between align-items-center';
+                    targetItem.innerHTML = `
+                        <div>
+                            <strong>${target.name}</strong>
+                            <span class="badge bg-secondary ms-2">${target.type}</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger remove-target" data-index="${index}">Remove</button>
+                    `;
+                    targetList.appendChild(targetItem);
+                });
+                
+                // Add event listeners to remove buttons
+                document.querySelectorAll('.remove-target').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        targets.splice(index, 1);
+                        updateTargetList();
+                    });
+                });
+            }
+            
+            addTargetBtn.addEventListener('click', function() {
+                const name = targetName.value.trim();
+                if (!name) return;
+                
+                const type = document.querySelector('input[name="targetType"]:checked').value;
+                
+                targets.push({ name, type });
+                targetName.value = '';
+                updateTargetList();
+            });
+            
+            generateBtn.addEventListener('click', function() {
+                if (targets.length === 0) {
+                    alert('Please add at least one target first.');
+                    return;
+                }
+                
+                // Show loading state
+                generateBtn.classList.add('loading');
+                generateBtn.disabled = true;
+                
+                // Make API request
+                fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ targets })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Reset loading state
+                    generateBtn.classList.remove('loading');
+                    generateBtn.disabled = false;
+                    
+                    // Display results
+                    if (data.error) {
+                        resultsContainer.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                        return;
+                    }
+                    
+                    if (!data.results || data.results.length === 0) {
+                        resultsContainer.innerHTML = '<div class="alert alert-warning">No results generated.</div>';
+                        return;
+                    }
+                    
+                    resultsContainer.innerHTML = '';
+                    data.results.forEach(result => {
+                        const resultCard = document.createElement('div');
+                        resultCard.className = 'card mb-3';
+                        resultCard.innerHTML = `
+                            <div class="card-body">
+                                <h5 class="card-title">${result.name} <span class="badge bg-secondary">${result.type}</span></h5>
+                                <p class="card-text">${result.snippet}</p>
+                                <button class="btn btn-sm btn-outline-primary copy-btn" data-snippet="${result.snippet.replace(/"/g, '&quot;')}">Copy to Clipboard</button>
+                            </div>
+                        `;
+                        resultsContainer.appendChild(resultCard);
+                    });
+                    
+                    // Add clipboard functionality
+                    document.querySelectorAll('.copy-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const snippet = this.getAttribute('data-snippet');
+                            navigator.clipboard.writeText(snippet).then(() => {
+                                const originalText = this.textContent;
+                                this.textContent = 'Copied!';
+                                setTimeout(() => {
+                                    this.textContent = originalText;
+                                }, 2000);
+                            });
+                        });
+                    });
+                })
+                .catch(error => {
+                    generateBtn.classList.remove('loading');
+                    generateBtn.disabled = false;
+                    resultsContainer.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                });
+            });
+        });
+    </script>
+</body>
+</html>
