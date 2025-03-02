@@ -1,29 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personalized Outreach Generator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .target-item {
-            border-bottom: 1px solid #eee;
-            padding: 10px 0;
-        }
-        .results-container {
-            margin-top: 30px;
-        }
-        .spinner-border {
-            display: none;
-        }
-        .loading .spinner-border {
-            display: inline-block;
-        }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block content %}
     <div class="container my-5">
         <h1 class="mb-4">Personalized Outreach Generator</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">API Usage Status</h5>
+                <div id="apiStatus" class="text-muted">Loading...</div>
+                <button class="btn btn-sm btn-outline-secondary mt-2" id="refreshStatus">Refresh Status</button>
+            </div>
+        </div>
         
         <div class="card mb-4">
             <div class="card-body">
@@ -69,13 +56,6 @@
         <div class="results-container">
             <h3>Results</h3>
             <div id="resultsContainer"></div>
-        </div>
-        <div class="card mt-4">
-            <div class="card-body">
-                <h5 class="card-title">API Usage Status</h5>
-                <div id="apiStatus" class="text-muted">Loading...</div>
-                <button class="btn btn-sm btn-outline-secondary mt-2" id="refreshStatus">Refresh Status</button>
-            </div>
         </div>
     </div>
     
@@ -221,5 +201,4 @@
         // Load status on page load
         updateApiStatus();
     </script>
-</body>
-</html>
+{% endblock %}

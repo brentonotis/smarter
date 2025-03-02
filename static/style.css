@@ -1,0 +1,16 @@
+.target-item {
+    border-bottom: 1px solid #eee;
+    padding: 10px 0;
+}
+
+.results-container {
+    margin-top: 30px;
+}
+
+.spinner-border {
+    display: none;
+}
+
+.loading .spinner-border {
+    display: inline-block;
+} 
