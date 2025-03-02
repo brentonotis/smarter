@@ -24,6 +24,7 @@ import re
 import gc
 import threading
 from db_config import init_db_pool, get_db_connection, release_db_connection, db_pool
+import werkzeug.exceptions
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -419,8 +420,14 @@ def register():
 @app.route('/logout')
 @login_required
 def logout():
-    logout_user()
-    return redirect(url_for('login'))
+    try:
+        logout_user()
+        session.clear()  # Clear the session data
+        flash('You have been logged out successfully.', 'info')  # Add a success message
+        return redirect(url_for('login'))
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
@@ -669,6 +676,10 @@ RATE_LIMIT_WARNING_THRESHOLD = 0.8
 # Custom error handler
 @app.errorhandler(Exception)
 def handle_error(error):
+    # Don't log or show errors for normal redirects
+    if isinstance(error, werkzeug.exceptions.HTTPException) and error.code in [301, 302]:
+        return error
+    
     logger.error(f'Unhandled exception: {str(error)}', exc_info=True)
     if request.is_json:
         return jsonify({
