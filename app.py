@@ -20,6 +20,7 @@ from logging.handlers import RotatingFileHandler
 from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 from flask_wtf import FlaskForm
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -123,6 +124,11 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 # Rate limiting data structures
 ip_request_counts = defaultdict(int)
 ip_last_reset = defaultdict(float)
+
+# Rate limiting for login attempts
+login_attempts = defaultdict(list)
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_TIMEOUT = 900  # 15 minutes in seconds
 
 # Configure database
 def get_db_connection():
@@ -354,13 +360,30 @@ def generate_snippet(name, entity_type, context_data, user_id):
         return f"I noticed that {name} has been making waves in the industry lately. Our solution could help you capitalize on this momentum by streamlining your operations."
 
 # Authentication routes
+def is_login_allowed(email):
+    """Check if login is allowed based on previous attempts"""
+    current_time = time.time()
+    # Remove attempts older than timeout
+    login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
+    
+    # Check number of recent attempts
+    if len(login_attempts[email]) >= MAX_LOGIN_ATTEMPTS:
+        return False
+    return True
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    form = FlaskForm()  # Create a basic form for CSRF
+    form = FlaskForm()
     if request.method == 'POST':
         if form.validate_on_submit():
             email = request.form.get('email')
             password = request.form.get('password')
+            
+            # Check if login is allowed
+            if not is_login_allowed(email):
+                remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+                flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.')
+                return render_template('login.html', form=form)
             
             try:
                 conn = get_db_connection()
@@ -373,8 +396,12 @@ def login():
                 if user_data and check_password_hash(user_data['password_hash'], password):
                     user = User(user_data['id'], user_data['email'], user_data['password_hash'])
                     login_user(user)
+                    # Clear login attempts on successful login
+                    login_attempts[email] = []
                     return redirect(url_for('index'))
                 
+                # Record failed attempt
+                login_attempts[email].append(time.time())
                 flash('Invalid email or password')
             except Exception as e:
                 print(f"Login error: {e}")
@@ -382,9 +409,30 @@ def login():
     
     return render_template('login.html', form=form)
 
+def validate_password(password):
+    """
+    Validate password complexity:
+    - At least 8 characters long
+    - Contains at least one uppercase letter
+    - Contains at least one lowercase letter
+    - Contains at least one number
+    - Contains at least one special character
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one number"
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "Password must contain at least one special character"
+    return True, "Password is valid"
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    form = FlaskForm()  # Create a basic form for CSRF
+    form = FlaskForm()
     if request.method == 'POST':
         if form.validate_on_submit():
             email = request.form.get('email')
@@ -394,8 +442,10 @@ def register():
                 flash('Email and password are required')
                 return render_template('register.html', form=form)
             
-            if len(password) < 8:
-                flash('Password must be at least 8 characters long')
+            # Validate password complexity
+            is_valid, message = validate_password(password)
+            if not is_valid:
+                flash(message)
                 return render_template('register.html', form=form)
             
             try:
@@ -621,8 +671,10 @@ def reset_password(token):
     if request.method == 'POST':
         password = request.form.get('password')
         
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long')
+        # Validate password complexity
+        is_valid, message = validate_password(password)
+        if not is_valid:
+            flash(message)
             return render_template('reset_password.html')
         
         conn = get_db_connection()

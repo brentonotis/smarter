@@ -26,7 +26,16 @@
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
                             <input type="password" class="form-control" id="password" name="password" required>
-                            <div class="form-text">Password must be at least 8 characters long.</div>
+                            <div class="form-text">
+                                Password must contain:
+                                <ul class="mb-0">
+                                    <li>At least 8 characters</li>
+                                    <li>One uppercase letter</li>
+                                    <li>One lowercase letter</li>
+                                    <li>One number</li>
+                                    <li>One special character (!@#$%^&*(),.?":{}|<>)</li>
+                                </ul>
+                            </div>
                         </div>
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">Register</button>
