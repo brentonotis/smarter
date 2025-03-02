@@ -21,9 +21,9 @@ from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 from flask_wtf import FlaskForm
 import re
-from psycopg2.pool import SimpleConnectionPool
 import gc
 import threading
+from db_config import init_db_pool, get_db_connection, release_db_connection, db_pool
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -151,25 +151,49 @@ def init_db_pool():
             database_url = database_url.replace('postgres://', 'postgresql://', 1)
             
         if database_url:
-            db_pool = SimpleConnectionPool(1, 10, database_url)
+            db_pool = SimpleConnectionPool(
+                minconn=2,  # Minimum number of connections
+                maxconn=20,  # Maximum number of connections
+                database=database_url
+            )
         else:
             # Local development fallback
-            db_pool = SimpleConnectionPool(1, 10,
+            db_pool = SimpleConnectionPool(
+                minconn=2,
+                maxconn=20,
                 database="outreach_db",
                 user="postgres",
                 password="postgres",
                 host="localhost",
                 port="5432"
             )
+        logger.info("Database pool initialized successfully")
     except Exception as e:
-        print(f"Database pool initialization error: {e}")
+        logger.error(f"Database pool initialization error: {e}")
         raise
 
 def get_db_connection():
-    return db_pool.getconn()
+    try:
+        conn = db_pool.getconn()
+        if conn:
+            return conn
+        logger.error("Failed to get database connection from pool")
+        raise Exception("Could not get database connection")
+    except Exception as e:
+        logger.error(f"Error getting database connection: {e}")
+        raise
 
 def release_db_connection(conn):
-    db_pool.putconn(conn)
+    if conn is not None:
+        try:
+            db_pool.putconn(conn)
+        except Exception as e:
+            logger.error(f"Error releasing database connection: {e}")
+            # If we can't return it to the pool, try to close it
+            try:
+                conn.close()
+            except:
+                pass
 
 # Cleanup function for data structures
 def cleanup_data_structures():
