@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session, send_from_directory
 import requests
 import json
 import openai
@@ -705,8 +705,21 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https:; "
+        "frame-src 'self';"
+    )
     return response
+
+# Serve static files in production
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
