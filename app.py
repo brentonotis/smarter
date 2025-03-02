@@ -18,7 +18,9 @@ import functools
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # Session timeout after 1 hour
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session timeout to 24 hours
+app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
+app.config['NEWS_API_DAILY_LIMIT'] = 95
 
 # Initialize Flask-Mail
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
@@ -211,64 +213,14 @@ def track_news_api_call(user_id):
     cursor.close()
     conn.close()
 
-def check_api_limits(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    today = datetime.now().date()
-    
-    cursor.execute("""
-        SELECT openai_tokens_used, news_api_calls 
-        FROM api_usage 
-        WHERE user_id = %s AND date = %s
-    """, (user_id, today))
-    usage = cursor.fetchone()
-    
-    cursor.close()
-    conn.close()
-    
-    if not usage:
-        return {"openai_limit_reached": False, "news_api_limit_reached": False}
-    
-    # Set your daily limits - adjust as needed
-    openai_daily_limit = 100000  # tokens
-    news_api_daily_limit = 95    # calls
-    
-    return {
-        "openai_limit_reached": usage['openai_tokens_used'] >= openai_daily_limit,
-        "news_api_limit_reached": usage['news_api_calls'] >= news_api_daily_limit
-    }
+# Cache settings
+CACHE_TIMEOUT = {
+    'news': 900,    # 15 minutes for news
+    'status': 60,   # 1 minute for status
+    'default': 300  # 5 minutes default
+}
 
-# Call init_db on startup
-with app.app_context():
-    init_db()
-
-# Cache decorator
-def cache_with_timeout(timeout=300):  # 5 minutes default
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            # Create a cache key from the function name and arguments
-            cache_key = f"{f.__name__}:{str(args)}:{str(kwargs)}"
-            
-            # Try to get the cached result
-            result = redis_client.get(cache_key)
-            if result is not None:
-                return json.loads(result)
-            
-            # If not cached, call the function
-            result = f(*args, **kwargs)
-            
-            # Cache the result
-            redis_client.setex(cache_key, timeout, json.dumps(result))
-            return result
-        return wrapper
-    return decorator
-
-# Rate limit warning threshold (80% of limit)
-RATE_LIMIT_WARNING_THRESHOLD = 0.8
-
-# Cache the news API results
-@cache_with_timeout(300)  # Cache for 5 minutes
+@cache_with_timeout(CACHE_TIMEOUT['news'])  # Use 15 minutes for news cache
 def fetch_company_news(company_name, user_id):
     # Check limits first
     limits = check_api_limits(user_id)
@@ -634,6 +586,63 @@ def before_request():
         if (openai_usage / app.config['OPENAI_DAILY_LIMIT'] >= RATE_LIMIT_WARNING_THRESHOLD or
             news_api_usage / app.config['NEWS_API_DAILY_LIMIT'] >= RATE_LIMIT_WARNING_THRESHOLD):
             flash('Warning: You are approaching your daily API usage limits', 'warning')
+
+@cache_with_timeout(CACHE_TIMEOUT['status'])  # Use 1 minute for status cache
+def check_api_limits(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    today = datetime.now().date()
+    
+    cursor.execute("""
+        SELECT openai_tokens_used, news_api_calls 
+        FROM api_usage 
+        WHERE user_id = %s AND date = %s
+    """, (user_id, today))
+    usage = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    if not usage:
+        return {"openai_limit_reached": False, "news_api_limit_reached": False}
+    
+    # Set your daily limits - adjust as needed
+    openai_daily_limit = 100000  # tokens
+    news_api_daily_limit = 95    # calls
+    
+    return {
+        "openai_limit_reached": usage['openai_tokens_used'] >= openai_daily_limit,
+        "news_api_limit_reached": usage['news_api_calls'] >= news_api_daily_limit
+    }
+
+# Call init_db on startup
+with app.app_context():
+    init_db()
+
+# Cache decorator
+def cache_with_timeout(timeout=300):  # 5 minutes default
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            # Create a cache key from the function name and arguments
+            cache_key = f"{f.__name__}:{str(args)}:{str(kwargs)}"
+            
+            # Try to get the cached result
+            result = redis_client.get(cache_key)
+            if result is not None:
+                return json.loads(result)
+            
+            # If not cached, call the function
+            result = f(*args, **kwargs)
+            
+            # Cache the result
+            redis_client.setex(cache_key, timeout, json.dumps(result))
+            return result
+        return wrapper
+    return decorator
+
+# Rate limit warning threshold (80% of limit)
+RATE_LIMIT_WARNING_THRESHOLD = 0.8
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
