@@ -22,6 +22,45 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
 app.config['NEWS_API_DAILY_LIMIT'] = 95
 
+# Initialize Redis and caching
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+redis_client = redis.from_url(redis_url)
+
+# Cache settings
+CACHE_TIMEOUT = {
+    'news': 900,    # 15 minutes for news
+    'status': 60,   # 1 minute for status
+    'default': 300  # 5 minutes default
+}
+
+# Cache decorator
+def cache_with_timeout(timeout):
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            try:
+                # Create a cache key from the function name and arguments
+                cache_key = f"{f.__name__}:{str(args)}:{str(kwargs)}"
+                
+                # Try to get the cached result
+                cached_result = redis_client.get(cache_key)
+                if cached_result is not None:
+                    return json.loads(cached_result)
+                
+                # If no cached result, call the function
+                result = f(*args, **kwargs)
+                
+                # Cache the result
+                redis_client.setex(cache_key, timeout, json.dumps(result))
+                
+                return result
+            except redis.exceptions.RedisError as e:
+                print(f"Redis error: {e}")
+                # If Redis fails, just execute the function without caching
+                return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 # Initialize Flask-Mail
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', '587'))
@@ -31,10 +70,6 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
 mail = Mail(app)
-
-# Initialize Redis
-redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
 
 # Initialize token serializer for password reset
 serializer = URLSafeTimedSerializer(app.secret_key)
@@ -212,13 +247,6 @@ def track_news_api_call(user_id):
     
     cursor.close()
     conn.close()
-
-# Cache settings
-CACHE_TIMEOUT = {
-    'news': 900,    # 15 minutes for news
-    'status': 60,   # 1 minute for status
-    'default': 300  # 5 minutes default
-}
 
 @cache_with_timeout(CACHE_TIMEOUT['news'])  # Use 15 minutes for news cache
 def fetch_company_news(company_name, user_id):
@@ -618,28 +646,6 @@ def check_api_limits(user_id):
 # Call init_db on startup
 with app.app_context():
     init_db()
-
-# Cache decorator
-def cache_with_timeout(timeout=300):  # 5 minutes default
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            # Create a cache key from the function name and arguments
-            cache_key = f"{f.__name__}:{str(args)}:{str(kwargs)}"
-            
-            # Try to get the cached result
-            result = redis_client.get(cache_key)
-            if result is not None:
-                return json.loads(result)
-            
-            # If not cached, call the function
-            result = f(*args, **kwargs)
-            
-            # Cache the result
-            redis_client.setex(cache_key, timeout, json.dumps(result))
-            return result
-        return wrapper
-    return decorator
 
 # Rate limit warning threshold (80% of limit)
 RATE_LIMIT_WARNING_THRESHOLD = 0.8
