@@ -19,6 +19,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from flask_wtf.csrf import CSRFProtect
 from functools import wraps
+from flask_wtf import FlaskForm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -355,75 +356,79 @@ def generate_snippet(name, entity_type, context_data, user_id):
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    form = FlaskForm()  # Create a basic form for CSRF
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            user_data = cursor.fetchone()
-            cursor.close()
-            conn.close()
+        if form.validate_on_submit():
+            email = request.form.get('email')
+            password = request.form.get('password')
             
-            if user_data and check_password_hash(user_data['password_hash'], password):
-                user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                login_user(user)
-                return redirect(url_for('index'))
-            
-            flash('Invalid email or password')
-        except Exception as e:
-            print(f"Login error: {e}")
-            flash('An error occurred during login. Please try again.')
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user_data = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                
+                if user_data and check_password_hash(user_data['password_hash'], password):
+                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                    login_user(user)
+                    return redirect(url_for('index'))
+                
+                flash('Invalid email or password')
+            except Exception as e:
+                print(f"Login error: {e}")
+                flash('An error occurred during login. Please try again.')
     
-    return render_template('login.html')
+    return render_template('login.html', form=form)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    form = FlaskForm()  # Create a basic form for CSRF
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        if not email or not password:
-            flash('Email and password are required')
-            return render_template('register.html')
-        
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long')
-            return render_template('register.html')
-        
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
+        if form.validate_on_submit():
+            email = request.form.get('email')
+            password = request.form.get('password')
             
-            # Check if user already exists
-            cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-            if cursor.fetchone():
-                flash('Email already registered')
-                return render_template('register.html')
+            if not email or not password:
+                flash('Email and password are required')
+                return render_template('register.html', form=form)
             
-            # Create new user
-            cursor.execute(
-                "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
-                (email, generate_password_hash(password))
-            )
-            user_id = cursor.fetchone()[0]
-            conn.commit()
+            if len(password) < 8:
+                flash('Password must be at least 8 characters long')
+                return render_template('register.html', form=form)
             
-            # Log the user in
-            user = User(user_id, email, generate_password_hash(password))
-            login_user(user)
-            
-            cursor.close()
-            conn.close()
-            
-            return redirect(url_for('index'))
-        except Exception as e:
-            print(f"Registration error: {e}")
-            flash('An error occurred during registration. Please try again.')
-            
-    return render_template('register.html')
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Check if user already exists
+                cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+                if cursor.fetchone():
+                    flash('Email already registered')
+                    return render_template('register.html', form=form)
+                
+                # Create new user
+                cursor.execute(
+                    "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+                    (email, generate_password_hash(password))
+                )
+                user_id = cursor.fetchone()[0]
+                conn.commit()
+                
+                # Log the user in
+                user = User(user_id, email, generate_password_hash(password))
+                login_user(user)
+                
+                cursor.close()
+                conn.close()
+                
+                return redirect(url_for('index'))
+            except Exception as e:
+                print(f"Registration error: {e}")
+                flash('An error occurred during registration. Please try again.')
+                
+    return render_template('register.html', form=form)
 
 @app.route('/logout')
 @login_required
@@ -719,7 +724,7 @@ def add_security_headers(response):
 # Serve static files in production
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    return send_from_directory('static', filename)
+    return send_from_directory(app.static_folder or 'static', filename)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
