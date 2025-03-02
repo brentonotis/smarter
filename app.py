@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session, send_from_directory, g
 import requests
 import json
 import openai
@@ -695,9 +695,19 @@ def check_api_limits(user_id):
     finally:
         release_db_connection(conn)
 
-# Call init_db on startup
-with app.app_context():
+# Initialize app setup function
+def init_app():
     init_db_pool()
+    schedule_cleanup()
+    schedule_redis_cleanup()
+
+@app.before_first_request
+def before_first_request():
+    init_app()
+
+# Call init_app on startup
+with app.app_context():
+    init_app()
 
 # Rate limit warning threshold (80% of limit)
 RATE_LIMIT_WARNING_THRESHOLD = 0.8
@@ -754,12 +764,6 @@ def cleanup_redis_cache():
 def schedule_redis_cleanup():
     cleanup_redis_cache()
     threading.Timer(3600, schedule_redis_cleanup).start()
-
-@app.before_first_request
-def before_first_request():
-    init_db_pool()
-    schedule_cleanup()
-    schedule_redis_cleanup()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
