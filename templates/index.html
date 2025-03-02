@@ -70,6 +70,13 @@
             <h3>Results</h3>
             <div id="resultsContainer"></div>
         </div>
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">API Usage Status</h5>
+                <div id="apiStatus" class="text-muted">Loading...</div>
+                <button class="btn btn-sm btn-outline-secondary mt-2" id="refreshStatus">Refresh Status</button>
+            </div>
+        </div>
     </div>
     
     <script>
@@ -194,6 +201,25 @@
                 });
             });
         });
+
+        function updateApiStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('apiStatus');
+                    statusDiv.innerHTML = `
+                        <div>OpenAI Tokens Today: ${data.openai_tokens_used} / ${data.openai_daily_limit}</div>
+                        <div>News API Calls Today: ${data.news_api_calls} / ${data.news_api_daily_limit}</div>
+                        <div class="text-${data.within_limits ? 'success' : 'danger'} mt-2">
+                            Status: ${data.within_limits ? 'Within Limits' : 'Daily Limit Reached'}
+                        </div>
+                    `;
+                });
+        }
+
+        document.getElementById('refreshStatus').addEventListener('click', updateApiStatus);
+        // Load status on page load
+        updateApiStatus();
     </script>
 </body>
 </html>

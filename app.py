@@ -7,11 +7,17 @@ from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from urllib.parse import urlparse
+import time
+from collections import defaultdict
 
 app = Flask(__name__)
 
 # Configure OpenAI API
 openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+# Rate limiting data structures
+ip_request_counts = defaultdict(int)
+ip_last_reset = defaultdict(float)
 
 # Configure database
 def get_db_connection():
@@ -67,9 +73,81 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS api_usage (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        openai_tokens_used INTEGER DEFAULT 0,
+        news_api_calls INTEGER DEFAULT 0
+    )
+    ''')
     
     cursor.close()
     conn.close()
+
+def track_openai_usage(token_count):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    today = datetime.now().date()
+    
+    # Check if we have a record for today
+    cursor.execute("SELECT id FROM api_usage WHERE date = %s", (today,))
+    record = cursor.fetchone()
+    
+    if record:
+        # Update existing record
+        cursor.execute("UPDATE api_usage SET openai_tokens_used = openai_tokens_used + %s WHERE date = %s", 
+                     (token_count, today))
+    else:
+        # Create new record
+        cursor.execute("INSERT INTO api_usage (date, openai_tokens_used) VALUES (%s, %s)", 
+                     (today, token_count))
+    
+    cursor.close()
+    conn.close()
+
+def track_news_api_call():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    today = datetime.now().date()
+    
+    # Check if we have a record for today
+    cursor.execute("SELECT id FROM api_usage WHERE date = %s", (today,))
+    record = cursor.fetchone()
+    
+    if record:
+        # Update existing record
+        cursor.execute("UPDATE api_usage SET news_api_calls = news_api_calls + 1 WHERE date = %s", (today,))
+    else:
+        # Create new record
+        cursor.execute("INSERT INTO api_usage (date, news_api_calls) VALUES (%s, 1)", (today,))
+    
+    cursor.close()
+    conn.close()
+
+def check_api_limits():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    today = datetime.now().date()
+    
+    cursor.execute("SELECT openai_tokens_used, news_api_calls FROM api_usage WHERE date = %s", (today,))
+    usage = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    if not usage:
+        return {"openai_limit_reached": False, "news_api_limit_reached": False}
+    
+    # Set your daily limits - adjust as needed
+    openai_daily_limit = 100000  # tokens
+    news_api_daily_limit = 95    # calls (free tier limit is 100)
+    
+    return {
+        "openai_limit_reached": usage['openai_tokens_used'] >= openai_daily_limit,
+        "news_api_limit_reached": usage['news_api_calls'] >= news_api_daily_limit
+    }
 
 # Call init_db on startup
 with app.app_context():
@@ -77,6 +155,17 @@ with app.app_context():
 
 # API endpoint to fetch company news
 def fetch_company_news(company_name):
+    # Check limits first
+    limits = check_api_limits()
+    if limits["news_api_limit_reached"]:
+        return [
+            {
+                "title": f"[DAILY LIMIT REACHED] Mock news about {company_name}",
+                "description": f"We've reached our daily API limit. Using mock data for {company_name}.",
+                "url": "https://example.com/news"
+            }
+        ]
+
     api_key = os.environ.get("NEWS_API_KEY")
     if not api_key:
         # Return mock data for testing if no API key
@@ -90,6 +179,10 @@ def fetch_company_news(company_name):
     
     url = f"https://newsapi.org/v2/everything?q={company_name}&sortBy=publishedAt&apiKey={api_key}"
     response = requests.get(url)
+
+    # Track this API call
+    track_news_api_call()
+    
     if response.status_code == 200:
         data = response.json()
         if data.get("articles"):
@@ -106,6 +199,11 @@ def fetch_company_news(company_name):
 
 # Generate personalized snippet using OpenAI
 def generate_snippet(name, entity_type, context_data):
+    # Check limits first
+    limits = check_api_limits()
+    if limits["openai_limit_reached"]:
+        return f"[DAILY LIMIT REACHED] Using template response for {name}. Our solution could help you optimize operations and increase efficiency."
+
     try:
         if not os.environ.get("OPENAI_API_KEY"):
             # Return mock response if no API key
@@ -132,6 +230,14 @@ def generate_snippet(name, entity_type, context_data):
             temperature=0.7
         )
         
+        # Estimate token usage (approximate)
+        prompt_tokens = len(prompt) // 4  # rough estimate
+        completion_tokens = len(response.choices[0].message["content"]) // 4
+        total_tokens = prompt_tokens + completion_tokens
+        
+        # Track usage
+        track_openai_usage(total_tokens)
+        
         return response.choices[0].message["content"].strip()
     except Exception as e:
         print(f"Error generating snippet: {e}")
@@ -143,6 +249,25 @@ def index():
 
 @app.route('/api/generate', methods=['POST'])
 def generate():
+    # Rate limiting
+    client_ip = request.remote_addr
+    current_time = time.time()
+    
+    # Reset counter if it's been more than an hour
+    if current_time - ip_last_reset[client_ip] > 3600:
+        ip_request_counts[client_ip] = 0
+        ip_last_reset[client_ip] = current_time
+    
+    # Check if rate limit exceeded (10 requests per hour)
+    if ip_request_counts[client_ip] >= 10:
+        return jsonify({
+            "error": "Rate limit exceeded. Please try again later.",
+            "remaining_time": int(3600 - (current_time - ip_last_reset[client_ip]))
+        }), 429
+    
+    # Increment request counter
+    ip_request_counts[client_ip] += 1
+    
     data = request.json
     if not data or 'targets' not in data:
         return jsonify({"error": "No targets provided"}), 400
@@ -195,6 +320,36 @@ def generate():
         conn.close()
     
     return jsonify({"results": results})
+
+@app.route('/api/status')
+def api_status():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    today = datetime.now().date()
+    
+    cursor.execute("SELECT openai_tokens_used, news_api_calls FROM api_usage WHERE date = %s", (today,))
+    usage = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    # Set your daily limits
+    openai_daily_limit = 100000  # tokens
+    news_api_daily_limit = 95    # calls
+    
+    if not usage:
+        usage = {'openai_tokens_used': 0, 'news_api_calls': 0}
+    
+    return jsonify({
+        "openai_tokens_used": usage['openai_tokens_used'],
+        "news_api_calls": usage['news_api_calls'],
+        "openai_daily_limit": openai_daily_limit,
+        "news_api_daily_limit": news_api_daily_limit,
+        "within_limits": (
+            usage['openai_tokens_used'] < openai_daily_limit and 
+            usage['news_api_calls'] < news_api_daily_limit
+        )
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
