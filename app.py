@@ -193,10 +193,13 @@ def schedule_cleanup():
     cleanup_data_structures()
     threading.Timer(3600, schedule_cleanup).start()
 
-@app.before_first_request
-def before_first_request():
+def init_app():
     init_db_pool()
     schedule_cleanup()
+
+# Initialize the app when it starts
+with app.app_context():
+    init_app()
 
 @app.teardown_appcontext
 def teardown_db(exception):
@@ -694,20 +697,6 @@ def check_api_limits(user_id):
         }
     finally:
         release_db_connection(conn)
-
-# Initialize app setup function
-def init_app():
-    init_db_pool()
-    schedule_cleanup()
-    schedule_redis_cleanup()
-
-@app.before_first_request
-def before_first_request():
-    init_app()
-
-# Call init_app on startup
-with app.app_context():
-    init_app()
 
 # Rate limit warning threshold (80% of limit)
 RATE_LIMIT_WARNING_THRESHOLD = 0.8
