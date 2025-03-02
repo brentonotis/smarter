@@ -38,7 +38,7 @@ app.config['NEWS_API_DAILY_LIMIT'] = 95
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
+redis_client = redis.from_url(redis_url, ssl_cert_reqs='required')  # Enable SSL verification
 
 # Cache settings
 CACHE_TIMEOUT = {
