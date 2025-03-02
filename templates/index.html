@@ -125,7 +125,8 @@
                 fetch('/api/generate', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                     },
                     body: JSON.stringify({ targets })
                 })
@@ -183,7 +184,11 @@
         });
 
         function updateApiStatus() {
-            fetch('/api/status')
+            fetch('/api/status', {
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            })
                 .then(response => response.json())
                 .then(data => {
                     const statusDiv = document.getElementById('apiStatus');
