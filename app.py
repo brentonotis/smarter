@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
 import requests
 import json
 import openai
@@ -9,8 +9,36 @@ from psycopg2.extras import RealDictCursor
 from urllib.parse import urlparse
 import time
 from collections import defaultdict
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev')  # Change this to a real secret key in production
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# User class for Flask-Login
+class User(UserMixin):
+    def __init__(self, id, email, password_hash):
+        self.id = id
+        self.email = email
+        self.password_hash = password_hash
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+    user_data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if user_data:
+        return User(user_data['id'], user_data['email'], user_data['password_hash'])
+    return None
 
 # Configure OpenAI API
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -54,16 +82,28 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Create tables if they don't exist
+    # Create users table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Create targets table with user_id
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS targets (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
         name TEXT NOT NULL,
         type TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     
+    # Create snippets table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS snippets (
         id SERIAL PRIMARY KEY,
@@ -74,64 +114,62 @@ def init_db():
     )
     ''')
 
+    # Modify api_usage table to track per-user usage
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS api_usage (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
         date DATE NOT NULL,
         openai_tokens_used INTEGER DEFAULT 0,
-        news_api_calls INTEGER DEFAULT 0
+        news_api_calls INTEGER DEFAULT 0,
+        UNIQUE(user_id, date)
     )
     ''')
     
     cursor.close()
     conn.close()
 
-def track_openai_usage(token_count):
+# Update tracking functions to include user_id
+def track_openai_usage(user_id, token_count):
     conn = get_db_connection()
     cursor = conn.cursor()
     today = datetime.now().date()
     
-    # Check if we have a record for today
-    cursor.execute("SELECT id FROM api_usage WHERE date = %s", (today,))
-    record = cursor.fetchone()
-    
-    if record:
-        # Update existing record
-        cursor.execute("UPDATE api_usage SET openai_tokens_used = openai_tokens_used + %s WHERE date = %s", 
-                     (token_count, today))
-    else:
-        # Create new record
-        cursor.execute("INSERT INTO api_usage (date, openai_tokens_used) VALUES (%s, %s)", 
-                     (today, token_count))
+    cursor.execute('''
+        INSERT INTO api_usage (user_id, date, openai_tokens_used)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (user_id, date)
+        DO UPDATE SET openai_tokens_used = api_usage.openai_tokens_used + EXCLUDED.openai_tokens_used
+    ''', (user_id, today, token_count))
     
     cursor.close()
     conn.close()
 
-def track_news_api_call():
+def track_news_api_call(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     today = datetime.now().date()
     
-    # Check if we have a record for today
-    cursor.execute("SELECT id FROM api_usage WHERE date = %s", (today,))
-    record = cursor.fetchone()
-    
-    if record:
-        # Update existing record
-        cursor.execute("UPDATE api_usage SET news_api_calls = news_api_calls + 1 WHERE date = %s", (today,))
-    else:
-        # Create new record
-        cursor.execute("INSERT INTO api_usage (date, news_api_calls) VALUES (%s, 1)", (today,))
+    cursor.execute('''
+        INSERT INTO api_usage (user_id, date, news_api_calls)
+        VALUES (%s, %s, 1)
+        ON CONFLICT (user_id, date)
+        DO UPDATE SET news_api_calls = api_usage.news_api_calls + 1
+    ''', (user_id, today))
     
     cursor.close()
     conn.close()
 
-def check_api_limits():
+def check_api_limits(user_id):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     today = datetime.now().date()
     
-    cursor.execute("SELECT openai_tokens_used, news_api_calls FROM api_usage WHERE date = %s", (today,))
+    cursor.execute("""
+        SELECT openai_tokens_used, news_api_calls 
+        FROM api_usage 
+        WHERE user_id = %s AND date = %s
+    """, (user_id, today))
     usage = cursor.fetchone()
     
     cursor.close()
@@ -142,7 +180,7 @@ def check_api_limits():
     
     # Set your daily limits - adjust as needed
     openai_daily_limit = 100000  # tokens
-    news_api_daily_limit = 95    # calls (free tier limit is 100)
+    news_api_daily_limit = 95    # calls
     
     return {
         "openai_limit_reached": usage['openai_tokens_used'] >= openai_daily_limit,
@@ -154,9 +192,9 @@ with app.app_context():
     init_db()
 
 # API endpoint to fetch company news
-def fetch_company_news(company_name):
+def fetch_company_news(company_name, user_id):
     # Check limits first
-    limits = check_api_limits()
+    limits = check_api_limits(user_id)
     if limits["news_api_limit_reached"]:
         return [
             {
@@ -181,7 +219,7 @@ def fetch_company_news(company_name):
     response = requests.get(url)
 
     # Track this API call
-    track_news_api_call()
+    track_news_api_call(user_id)
     
     if response.status_code == 200:
         data = response.json()
@@ -198,9 +236,9 @@ def fetch_company_news(company_name):
     ]
 
 # Generate personalized snippet using OpenAI
-def generate_snippet(name, entity_type, context_data):
+def generate_snippet(name, entity_type, context_data, user_id):
     # Check limits first
-    limits = check_api_limits()
+    limits = check_api_limits(user_id)
     if limits["openai_limit_reached"]:
         return f"[DAILY LIMIT REACHED] Using template response for {name}. Our solution could help you optimize operations and increase efficiency."
 
@@ -236,18 +274,78 @@ def generate_snippet(name, entity_type, context_data):
         total_tokens = prompt_tokens + completion_tokens
         
         # Track usage
-        track_openai_usage(total_tokens)
+        track_openai_usage(user_id, total_tokens)
         
         return response.choices[0].message["content"].strip()
     except Exception as e:
         print(f"Error generating snippet: {e}")
         return f"I noticed that {name} has been making waves in the industry lately. Our solution could help you capitalize on this momentum by streamlining your operations."
 
+# Authentication routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        user_data = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if user_data and check_password_hash(user_data['password_hash'], password):
+            user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+            login_user(user)
+            return redirect(url_for('index'))
+        
+        flash('Invalid email or password')
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute(
+                "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+                (email, generate_password_hash(password))
+            )
+            user_id = cursor.fetchone()[0]
+            conn.commit()
+            
+            user = User(user_id, email, generate_password_hash(password))
+            login_user(user)
+            return redirect(url_for('index'))
+        except psycopg2.IntegrityError:
+            flash('Email already registered')
+        finally:
+            cursor.close()
+            conn.close()
+            
+    return render_template('register.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# Update main route to require login
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
+# Update API routes to use current_user
 @app.route('/api/generate', methods=['POST'])
+@login_required
 def generate():
     # Rate limiting
     client_ip = request.remote_addr
@@ -284,22 +382,21 @@ def generate():
             if not name:
                 continue
                 
-            # Insert target into database
+            # Insert target into database with user_id
             cursor.execute(
-                "INSERT INTO targets (name, type) VALUES (%s, %s) RETURNING id",
-                (name, entity_type)
+                "INSERT INTO targets (user_id, name, type) VALUES (%s, %s, %s) RETURNING id",
+                (current_user.id, name, entity_type)
             )
             target_id = cursor.fetchone()['id']
             
             # Fetch contextual data
             if entity_type == 'company':
-                context_data = fetch_company_news(name)
-            else:  # person
-                # This is a placeholder - in a real app, you'd fetch person-specific data
+                context_data = fetch_company_news(name, current_user.id)
+            else:
                 context_data = [{"description": f"{name} is a professional in the industry."}]
             
             # Generate the snippet
-            snippet = generate_snippet(name, entity_type, context_data)
+            snippet = generate_snippet(name, entity_type, context_data, current_user.id)
             
             # Save the snippet
             cursor.execute(
@@ -322,12 +419,17 @@ def generate():
     return jsonify({"results": results})
 
 @app.route('/api/status')
+@login_required
 def api_status():
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     today = datetime.now().date()
     
-    cursor.execute("SELECT openai_tokens_used, news_api_calls FROM api_usage WHERE date = %s", (today,))
+    cursor.execute("""
+        SELECT openai_tokens_used, news_api_calls 
+        FROM api_usage 
+        WHERE user_id = %s AND date = %s
+    """, (current_user.id, today))
     usage = cursor.fetchone()
     
     cursor.close()

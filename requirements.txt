@@ -3,3 +3,5 @@ requests==2.31.0
 openai==0.28.1
 psycopg2-binary==2.9.7
 gunicorn==21.2.0
+Flask-Login==0.6.3
+werkzeug==3.0.1
