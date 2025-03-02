@@ -15,8 +15,22 @@ from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 import redis
 import functools
+import logging
+from logging.handlers import RotatingFileHandler
+from flask_wtf.csrf import CSRFProtect
+from functools import wraps
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=3)
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+logger.addHandler(handler)
 
 app = Flask(__name__)
+app.logger.addHandler(handler)  # Add the handler to Flask's logger
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session timeout to 24 hours
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
@@ -422,9 +436,29 @@ def logout():
 def index():
     return render_template('index.html')
 
-# Update API routes to use current_user
+def log_performance(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        start_time = time.time()
+        result = f(*args, **kwargs)
+        duration = time.time() - start_time
+        logger.info(f'Performance: {f.__name__} took {duration:.2f} seconds')
+        
+        # Store in Redis for monitoring
+        try:
+            key = f'perf:{f.__name__}:{datetime.now().strftime("%Y-%m-%d")}'
+            redis_client.lpush(key, duration)
+            redis_client.ltrim(key, 0, 999)  # Keep last 1000 measurements
+            redis_client.expire(key, 86400)  # Expire after 24 hours
+        except redis.exceptions.RedisError as e:
+            logger.error(f'Redis performance logging error: {e}')
+        
+        return result
+    return decorated_function
+
 @app.route('/api/generate', methods=['POST'])
 @login_required
+@log_performance
 def generate():
     # Rate limiting
     client_ip = request.remote_addr
@@ -499,6 +533,7 @@ def generate():
 
 @app.route('/api/status')
 @login_required
+@log_performance
 def api_status():
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -649,6 +684,29 @@ with app.app_context():
 
 # Rate limit warning threshold (80% of limit)
 RATE_LIMIT_WARNING_THRESHOLD = 0.8
+
+# Custom error handler
+@app.errorhandler(Exception)
+def handle_error(error):
+    logger.error(f'Unhandled exception: {str(error)}', exc_info=True)
+    if request.is_json:
+        return jsonify({
+            'error': 'An internal error occurred',
+            'message': str(error) if app.debug else 'Please try again later'
+        }), 500
+    flash('An unexpected error occurred. Please try again later.', 'error')
+    return redirect(url_for('index'))
+
+csrf = CSRFProtect(app)
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+    return response
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
