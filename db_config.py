@@ -1,6 +1,7 @@
 import os
 import logging
 from psycopg2.pool import SimpleConnectionPool
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,16 @@ def init_db_pool():
             database_url = database_url.replace('postgres://', 'postgresql://', 1)
             
         if database_url:
+            # Parse the database URL
+            result = urlparse(database_url)
             db_pool = SimpleConnectionPool(
                 minconn=2,  # Minimum number of connections
                 maxconn=20,  # Maximum number of connections
-                database=database_url
+                user=result.username,
+                password=result.password,
+                host=result.hostname,
+                port=result.port,
+                database=result.path[1:]  # Remove leading slash
             )
         else:
             # Local development fallback
