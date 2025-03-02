@@ -81,60 +81,73 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Drop existing tables in reverse order of dependencies
-        cursor.execute('''
-        DROP TABLE IF EXISTS api_usage CASCADE;
-        DROP TABLE IF EXISTS snippets CASCADE;
-        DROP TABLE IF EXISTS targets CASCADE;
-        DROP TABLE IF EXISTS users CASCADE;
-        ''')
+        # Check if tables exist and create them if they don't
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'users'
+            );
+        """)
+        users_exists = cursor.fetchone()[0]
         
-        # Create users table
-        cursor.execute('''
-        CREATE TABLE users (
-            id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-        
-        # Create targets table with user_id
-        cursor.execute('''
-        CREATE TABLE targets (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
-        ''')
-        
-        # Create snippets table
-        cursor.execute('''
-        CREATE TABLE snippets (
-            id SERIAL PRIMARY KEY,
-            target_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            source_data JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
-        )
-        ''')
+        if not users_exists:
+            cursor.execute('''
+            CREATE TABLE users (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            ''')
+            
+            cursor.execute('''
+            CREATE TABLE targets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            ''')
+            
+            cursor.execute('''
+            CREATE TABLE snippets (
+                id SERIAL PRIMARY KEY,
+                target_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                source_data JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
+            )
+            ''')
 
-        # Create api_usage table
-        cursor.execute('''
-        CREATE TABLE api_usage (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            date DATE NOT NULL,
-            openai_tokens_used INTEGER DEFAULT 0,
-            news_api_calls INTEGER DEFAULT 0,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            UNIQUE(user_id, date)
-        )
-        ''')
+            cursor.execute('''
+            CREATE TABLE api_usage (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                openai_tokens_used INTEGER DEFAULT 0,
+                news_api_calls INTEGER DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, date)
+            )
+            ''')
+        else:
+            # Check if user_id column exists in targets table
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_name = 'targets' AND column_name = 'user_id'
+                );
+            """)
+            user_id_exists = cursor.fetchone()[0]
+            
+            if not user_id_exists:
+                cursor.execute('''
+                    ALTER TABLE targets 
+                    ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+                ''')
         
         conn.commit()
         cursor.close()
