@@ -1,9 +1,9 @@
 import os
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
 import requests
 import json
 import openai
-from datetime import datetime
+from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from urllib.parse import urlparse
@@ -11,9 +11,31 @@ import time
 from collections import defaultdict
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
+import redis
+import functools
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)  # Session timeout after 1 hour
+
+# Initialize Flask-Mail
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', '587'))
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+
+mail = Mail(app)
+
+# Initialize Redis
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+redis_client = redis.from_url(redis_url)
+
+# Initialize token serializer for password reset
+serializer = URLSafeTimedSerializer(app.secret_key)
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -220,7 +242,33 @@ def check_api_limits(user_id):
 with app.app_context():
     init_db()
 
-# API endpoint to fetch company news
+# Cache decorator
+def cache_with_timeout(timeout=300):  # 5 minutes default
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            # Create a cache key from the function name and arguments
+            cache_key = f"{f.__name__}:{str(args)}:{str(kwargs)}"
+            
+            # Try to get the cached result
+            result = redis_client.get(cache_key)
+            if result is not None:
+                return json.loads(result)
+            
+            # If not cached, call the function
+            result = f(*args, **kwargs)
+            
+            # Cache the result
+            redis_client.setex(cache_key, timeout, json.dumps(result))
+            return result
+        return wrapper
+    return decorator
+
+# Rate limit warning threshold (80% of limit)
+RATE_LIMIT_WARNING_THRESHOLD = 0.8
+
+# Cache the news API results
+@cache_with_timeout(300)  # Cache for 5 minutes
 def fetch_company_news(company_name, user_id):
     # Check limits first
     limits = check_api_limits(user_id)
@@ -503,6 +551,89 @@ def api_status():
             usage['news_api_calls'] < news_api_daily_limit
         )
     })
+
+def send_password_reset_email(user_email):
+    token = serializer.dumps(user_email, salt='password-reset-salt')
+    reset_url = url_for('reset_password', token=token, _external=True)
+    
+    msg = Message('Password Reset Request',
+                 recipients=[user_email])
+    msg.body = f'''To reset your password, visit the following link:
+{reset_url}
+
+If you did not make this request, simply ignore this email.
+'''
+    mail.send(msg)
+
+@app.route('/reset_password_request', methods=['GET', 'POST'])
+def reset_password_request():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if user:
+            send_password_reset_email(email)
+        flash('Check your email for instructions to reset your password')
+        return redirect(url_for('login'))
+    
+    return render_template('reset_password_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)  # 1 hour expiration
+    except:
+        flash('The password reset link is invalid or has expired')
+        return redirect(url_for('reset_password_request'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long')
+            return render_template('reset_password.html')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET password_hash = %s WHERE email = %s",
+            (generate_password_hash(password), email)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        flash('Your password has been reset')
+        return redirect(url_for('login'))
+    
+    return render_template('reset_password.html')
+
+@app.before_request
+def before_request():
+    session.permanent = True  # Enable session timeout
+    session.modified = True   # Reset the session timeout on each request
+    
+    if current_user.is_authenticated:
+        # Check rate limits and warn if approaching
+        limits = check_api_limits(current_user.id)
+        openai_usage = limits.get('openai_tokens_used', 0)
+        news_api_usage = limits.get('news_api_calls', 0)
+        
+        if (openai_usage / app.config['OPENAI_DAILY_LIMIT'] >= RATE_LIMIT_WARNING_THRESHOLD or
+            news_api_usage / app.config['NEWS_API_DAILY_LIMIT'] >= RATE_LIMIT_WARNING_THRESHOLD):
+            flash('Warning: You are approaching your daily API usage limits', 'warning')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
