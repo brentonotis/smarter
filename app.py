@@ -21,6 +21,9 @@ from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 from flask_wtf import FlaskForm
 import re
+from psycopg2.pool import SimpleConnectionPool
+import gc
+import threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +43,13 @@ app.config['NEWS_API_DAILY_LIMIT'] = 95
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url, ssl_cert_reqs='required')  # Enable SSL verification
+redis_client = redis.from_url(redis_url, 
+    ssl_cert_reqs='required',
+    decode_responses=True,  # Decode responses to save memory
+    socket_timeout=2,  # Add timeout
+    socket_connect_timeout=2,
+    max_connections=10  # Limit connections
+)
 
 # Cache settings
 CACHE_TIMEOUT = {
@@ -130,113 +139,70 @@ login_attempts = defaultdict(list)
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_TIMEOUT = 900  # 15 minutes in seconds
 
-# Configure database
-def get_db_connection():
+# Initialize connection pool
+db_pool = None
+
+def init_db_pool():
+    global db_pool
     try:
         database_url = os.environ.get('DATABASE_URL')
         if database_url and database_url.startswith('postgres://'):
             database_url = database_url.replace('postgres://', 'postgresql://', 1)
             
         if database_url:
-            connection = psycopg2.connect(database_url)
+            db_pool = SimpleConnectionPool(1, 10, database_url)
         else:
             # Local development fallback
-            connection = psycopg2.connect(
+            db_pool = SimpleConnectionPool(1, 10,
                 database="outreach_db",
                 user="postgres",
                 password="postgres",
                 host="localhost",
                 port="5432"
             )
-        
-        connection.autocommit = True
-        return connection
     except Exception as e:
-        print(f"Database connection error: {e}")
+        print(f"Database pool initialization error: {e}")
         raise
 
-# Initialize database tables
-def init_db():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Check if tables exist and create them if they don't
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = 'users'
-            );
-        """)
-        users_exists = cursor.fetchone()[0]
-        
-        if not users_exists:
-            cursor.execute('''
-            CREATE TABLE users (
-                id SERIAL PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
-            
-            cursor.execute('''
-            CREATE TABLE targets (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                type TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-            ''')
-            
-            cursor.execute('''
-            CREATE TABLE snippets (
-                id SERIAL PRIMARY KEY,
-                target_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                source_data JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
-            )
-            ''')
+def get_db_connection():
+    return db_pool.getconn()
 
-            cursor.execute('''
-            CREATE TABLE api_usage (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                date DATE NOT NULL,
-                openai_tokens_used INTEGER DEFAULT 0,
-                news_api_calls INTEGER DEFAULT 0,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                UNIQUE(user_id, date)
-            )
-            ''')
-        else:
-            # Check if user_id column exists in targets table
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.columns 
-                    WHERE table_name = 'targets' AND column_name = 'user_id'
-                );
-            """)
-            user_id_exists = cursor.fetchone()[0]
-            
-            if not user_id_exists:
-                cursor.execute('''
-                    ALTER TABLE targets 
-                    ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
-                ''')
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        print("Database initialized successfully")
-    except Exception as e:
-        print(f"Error initializing database: {e}")
-        if 'conn' in locals():
-            conn.close()
+def release_db_connection(conn):
+    db_pool.putconn(conn)
+
+# Cleanup function for data structures
+def cleanup_data_structures():
+    current_time = time.time()
+    # Cleanup login attempts older than timeout
+    for email in list(login_attempts.keys()):
+        login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
+        if not login_attempts[email]:
+            del login_attempts[email]
+    
+    # Cleanup IP request counts older than 1 hour
+    for ip in list(ip_request_counts.keys()):
+        if current_time - ip_last_reset[ip] > 3600:
+            del ip_request_counts[ip]
+            del ip_last_reset[ip]
+    
+    # Force garbage collection
+    gc.collect()
+
+# Schedule cleanup every hour
+def schedule_cleanup():
+    cleanup_data_structures()
+    threading.Timer(3600, schedule_cleanup).start()
+
+@app.before_first_request
+def before_first_request():
+    init_db_pool()
+    schedule_cleanup()
+
+@app.teardown_appcontext
+def teardown_db(exception):
+    conn = getattr(g, '_database', None)
+    if conn is not None:
+        release_db_connection(conn)
 
 # Update tracking functions to include user_id
 def track_openai_usage(user_id, token_count):
@@ -710,34 +676,28 @@ def before_request():
 @cache_with_timeout(CACHE_TIMEOUT['status'])  # Use 1 minute for status cache
 def check_api_limits(user_id):
     conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    today = datetime.now().date()
-    
-    cursor.execute("""
-        SELECT openai_tokens_used, news_api_calls 
-        FROM api_usage 
-        WHERE user_id = %s AND date = %s
-    """, (user_id, today))
-    usage = cursor.fetchone()
-    
-    cursor.close()
-    conn.close()
-    
-    if not usage:
-        return {"openai_limit_reached": False, "news_api_limit_reached": False}
-    
-    # Set your daily limits - adjust as needed
-    openai_daily_limit = 100000  # tokens
-    news_api_daily_limit = 95    # calls
-    
-    return {
-        "openai_limit_reached": usage['openai_tokens_used'] >= openai_daily_limit,
-        "news_api_limit_reached": usage['news_api_calls'] >= news_api_daily_limit
-    }
+    try:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        today = datetime.now().date()
+        
+        cursor.execute("""
+            SELECT openai_tokens_used, news_api_calls 
+            FROM api_usage 
+            WHERE user_id = %s AND date = %s
+        """, (user_id, today))
+        usage = cursor.fetchone()
+        
+        cursor.close()
+        return {
+            "openai_limit_reached": usage['openai_tokens_used'] >= app.config['OPENAI_DAILY_LIMIT'] if usage else False,
+            "news_api_limit_reached": usage['news_api_calls'] >= app.config['NEWS_API_DAILY_LIMIT'] if usage else False
+        }
+    finally:
+        release_db_connection(conn)
 
 # Call init_db on startup
 with app.app_context():
-    init_db()
+    init_db_pool()
 
 # Rate limit warning threshold (80% of limit)
 RATE_LIMIT_WARNING_THRESHOLD = 0.8
@@ -777,6 +737,29 @@ def add_security_headers(response):
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory(app.static_folder or 'static', filename)
+
+# Add cache cleanup for Redis
+def cleanup_redis_cache():
+    try:
+        # Delete keys older than 24 hours
+        for key_pattern in ['perf:*', 'cache:*']:
+            keys = redis_client.keys(key_pattern)
+            for key in keys:
+                if redis_client.ttl(key) == -1:  # No expiration set
+                    redis_client.expire(key, 86400)  # Set 24h expiration
+    except redis.exceptions.RedisError as e:
+        logger.error(f'Redis cleanup error: {e}')
+
+# Add Redis cleanup to the schedule
+def schedule_redis_cleanup():
+    cleanup_redis_cache()
+    threading.Timer(3600, schedule_redis_cleanup).start()
+
+@app.before_first_request
+def before_first_request():
+    init_db_pool()
+    schedule_cleanup()
+    schedule_redis_cleanup()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
