@@ -115,15 +115,14 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        user_data = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if user_data:
-            return User(user_data['id'], user_data['email'], user_data['password_hash'])
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            user_data = cursor.fetchone()
+            cursor.close()
+            
+            if user_data:
+                return User(user_data['id'], user_data['email'], user_data['password_hash'])
     except Exception as e:
         print(f"Error loading user: {e}")
     return None
@@ -179,34 +178,34 @@ def teardown_db(exception):
 
 # Update tracking functions to include user_id
 def track_openai_usage(user_id, token_count):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    today = datetime.now().date()
-    
-    cursor.execute('''
-        INSERT INTO api_usage (user_id, date, openai_tokens_used)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (user_id, date)
-        DO UPDATE SET openai_tokens_used = api_usage.openai_tokens_used + EXCLUDED.openai_tokens_used
-    ''', (user_id, today, token_count))
-    
-    cursor.close()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        today = datetime.now().date()
+        
+        cursor.execute('''
+            INSERT INTO api_usage (user_id, date, openai_tokens_used)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, date)
+            DO UPDATE SET openai_tokens_used = api_usage.openai_tokens_used + EXCLUDED.openai_tokens_used
+        ''', (user_id, today, token_count))
+        
+        cursor.close()
+        conn.commit()
 
 def track_news_api_call(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    today = datetime.now().date()
-    
-    cursor.execute('''
-        INSERT INTO api_usage (user_id, date, news_api_calls)
-        VALUES (%s, %s, 1)
-        ON CONFLICT (user_id, date)
-        DO UPDATE SET news_api_calls = api_usage.news_api_calls + 1
-    ''', (user_id, today))
-    
-    cursor.close()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        today = datetime.now().date()
+        
+        cursor.execute('''
+            INSERT INTO api_usage (user_id, date, news_api_calls)
+            VALUES (%s, %s, 1)
+            ON CONFLICT (user_id, date)
+            DO UPDATE SET news_api_calls = api_usage.news_api_calls + 1
+        ''', (user_id, today))
+        
+        cursor.close()
+        conn.commit()
 
 @cache_with_timeout(CACHE_TIMEOUT['news'])  # Use 15 minutes for news cache
 def fetch_company_news(company_name, user_id):
@@ -325,23 +324,22 @@ def login():
                 return render_template('login.html', form=form)
             
             try:
-                conn = get_db_connection()
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                user_data = cursor.fetchone()
-                cursor.close()
-                conn.close()
-                
-                if user_data and check_password_hash(user_data['password_hash'], password):
-                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                    login_user(user)
-                    # Clear login attempts on successful login
-                    login_attempts[email] = []
-                    return redirect(url_for('index'))
-                
-                # Record failed attempt
-                login_attempts[email].append(time.time())
-                flash('Invalid email or password')
+                with get_db_connection() as conn:
+                    cursor = conn.cursor(cursor_factory=RealDictCursor)
+                    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                    user_data = cursor.fetchone()
+                    cursor.close()
+                    
+                    if user_data and check_password_hash(user_data['password_hash'], password):
+                        user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                        login_user(user)
+                        # Clear login attempts on successful login
+                        login_attempts[email] = []
+                        return redirect(url_for('index'))
+                    
+                    # Record failed attempt
+                    login_attempts[email].append(time.time())
+                    flash('Invalid email or password')
             except Exception as e:
                 print(f"Login error: {e}")
                 flash('An error occurred during login. Please try again.')
@@ -388,31 +386,30 @@ def register():
                 return render_template('register.html', form=form)
             
             try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                # Check if user already exists
-                cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-                if cursor.fetchone():
-                    flash('Email already registered')
-                    return render_template('register.html', form=form)
-                
-                # Create new user
-                cursor.execute(
-                    "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
-                    (email, generate_password_hash(password))
-                )
-                user_id = cursor.fetchone()[0]
-                conn.commit()
-                
-                # Log the user in
-                user = User(user_id, email, generate_password_hash(password))
-                login_user(user)
-                
-                cursor.close()
-                conn.close()
-                
-                return redirect(url_for('index'))
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # Check if user already exists
+                    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    if cursor.fetchone():
+                        flash('Email already registered')
+                        return render_template('register.html', form=form)
+                    
+                    # Create new user
+                    cursor.execute(
+                        "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+                        (email, generate_password_hash(password))
+                    )
+                    user_id = cursor.fetchone()[0]
+                    conn.commit()
+                    
+                    # Log the user in
+                    user = User(user_id, email, generate_password_hash(password))
+                    login_user(user)
+                    
+                    cursor.close()
+                    
+                    return redirect(url_for('index'))
             except Exception as e:
                 print(f"Registration error: {e}")
                 flash('An error occurred during registration. Please try again.')
@@ -478,50 +475,51 @@ def generate():
         return jsonify({"error": "No targets provided"}), 400
     
     results = []
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    try:
-        for target in data['targets']:
-            name = target.get('name', '').strip()
-            entity_type = target.get('type', 'company').lower()
-            
-            if not name:
-                continue
+    with get_db_connection() as conn:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        try:
+            for target in data['targets']:
+                name = target.get('name', '').strip()
+                entity_type = target.get('type', 'company').lower()
                 
-            # Insert target into database with user_id
-            cursor.execute(
-                "INSERT INTO targets (user_id, name, type) VALUES (%s, %s, %s) RETURNING id",
-                (current_user.id, name, entity_type)
-            )
-            target_id = cursor.fetchone()['id']
+                if not name:
+                    continue
+                    
+                # Insert target into database with user_id
+                cursor.execute(
+                    "INSERT INTO targets (user_id, name, type) VALUES (%s, %s, %s) RETURNING id",
+                    (current_user.id, name, entity_type)
+                )
+                target_id = cursor.fetchone()['id']
+                
+                # Fetch contextual data
+                if entity_type == 'company':
+                    context_data = fetch_company_news(name, current_user.id)
+                else:
+                    context_data = [{"description": f"{name} is a professional in the industry."}]
+                
+                # Generate the snippet
+                snippet = generate_snippet(name, entity_type, context_data, current_user.id)
+                
+                # Save the snippet
+                cursor.execute(
+                    "INSERT INTO snippets (target_id, content, source_data) VALUES (%s, %s, %s)",
+                    (target_id, snippet, json.dumps(context_data))
+                )
+                
+                results.append({
+                    "name": name,
+                    "type": entity_type,
+                    "snippet": snippet
+                })
             
-            # Fetch contextual data
-            if entity_type == 'company':
-                context_data = fetch_company_news(name, current_user.id)
-            else:
-                context_data = [{"description": f"{name} is a professional in the industry."}]
-            
-            # Generate the snippet
-            snippet = generate_snippet(name, entity_type, context_data, current_user.id)
-            
-            # Save the snippet
-            cursor.execute(
-                "INSERT INTO snippets (target_id, content, source_data) VALUES (%s, %s, %s)",
-                (target_id, snippet, json.dumps(context_data))
-            )
-            
-            results.append({
-                "name": name,
-                "type": entity_type,
-                "snippet": snippet
-            })
-    except Exception as e:
-        print(f"Error processing request: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
+            conn.commit()
+        except Exception as e:
+            print(f"Error processing request: {e}")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            cursor.close()
     
     return jsonify({"results": results})
 
@@ -529,19 +527,18 @@ def generate():
 @login_required
 @log_performance
 def api_status():
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    today = datetime.now().date()
-    
-    cursor.execute("""
-        SELECT openai_tokens_used, news_api_calls 
-        FROM api_usage 
-        WHERE user_id = %s AND date = %s
-    """, (current_user.id, today))
-    usage = cursor.fetchone()
-    
-    cursor.close()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        today = datetime.now().date()
+        
+        cursor.execute("""
+            SELECT openai_tokens_used, news_api_calls 
+            FROM api_usage 
+            WHERE user_id = %s AND date = %s
+        """, (current_user.id, today))
+        usage = cursor.fetchone()
+        
+        cursor.close()
     
     # Set your daily limits
     openai_daily_limit = 100000  # tokens
@@ -648,8 +645,7 @@ def before_request():
 
 @cache_with_timeout(CACHE_TIMEOUT['status'])  # Use 1 minute for status cache
 def check_api_limits(user_id):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         today = datetime.now().date()
         
@@ -661,12 +657,11 @@ def check_api_limits(user_id):
         usage = cursor.fetchone()
         
         cursor.close()
+        
         return {
             "openai_limit_reached": usage['openai_tokens_used'] >= app.config['OPENAI_DAILY_LIMIT'] if usage else False,
             "news_api_limit_reached": usage['news_api_calls'] >= app.config['NEWS_API_DAILY_LIMIT'] if usage else False
         }
-    finally:
-        release_db_connection(conn)
 
 # Rate limit warning threshold (80% of limit)
 RATE_LIMIT_WARNING_THRESHOLD = 0.8
