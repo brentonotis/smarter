@@ -81,9 +81,17 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Create users table if it doesn't exist
+        # Drop existing tables in reverse order of dependencies
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
+        DROP TABLE IF EXISTS api_usage CASCADE;
+        DROP TABLE IF EXISTS snippets CASCADE;
+        DROP TABLE IF EXISTS targets CASCADE;
+        DROP TABLE IF EXISTS users CASCADE;
+        ''')
+        
+        # Create users table
+        cursor.execute('''
+        CREATE TABLE users (
             id SERIAL PRIMARY KEY,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
@@ -91,36 +99,39 @@ def init_db():
         )
         ''')
         
-        # Create targets table if it doesn't exist
+        # Create targets table with user_id
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS targets (
+        CREATE TABLE targets (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
+            user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             type TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         ''')
         
-        # Create snippets table if it doesn't exist
+        # Create snippets table
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS snippets (
+        CREATE TABLE snippets (
             id SERIAL PRIMARY KEY,
-            target_id INTEGER REFERENCES targets(id),
+            target_id INTEGER NOT NULL,
             content TEXT NOT NULL,
             source_data JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (target_id) REFERENCES targets(id) ON DELETE CASCADE
         )
         ''')
 
-        # Create or update api_usage table
+        # Create api_usage table
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS api_usage (
+        CREATE TABLE api_usage (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
+            user_id INTEGER NOT NULL,
             date DATE NOT NULL,
             openai_tokens_used INTEGER DEFAULT 0,
             news_api_calls INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             UNIQUE(user_id, date)
         )
         ''')
@@ -131,7 +142,7 @@ def init_db():
         print("Database initialized successfully")
     except Exception as e:
         print(f"Error initializing database: {e}")
-        if conn:
+        if 'conn' in locals():
             conn.close()
 
 # Update tracking functions to include user_id
