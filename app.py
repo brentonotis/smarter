@@ -13,7 +13,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev')  # Change this to a real secret key in production
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -29,15 +29,18 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-    user_data = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    
-    if user_data:
-        return User(user_data['id'], user_data['email'], user_data['password_hash'])
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user_data = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if user_data:
+            return User(user_data['id'], user_data['email'], user_data['password_hash'])
+    except Exception as e:
+        print(f"Error loading user: {e}")
     return None
 
 # Configure OpenAI API
@@ -49,85 +52,87 @@ ip_last_reset = defaultdict(float)
 
 # Configure database
 def get_db_connection():
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url:
-        result = urlparse(database_url)
-        username = result.username
-        password = result.password
-        database = result.path[1:]
-        hostname = result.hostname
-        port = result.port
-        connection = psycopg2.connect(
-            database=database,
-            user=username,
-            password=password,
-            host=hostname,
-            port=port
-        )
-    else:
-        # Local development fallback
-        connection = psycopg2.connect(
-            database="outreach_db",
-            user="postgres",
-            password="postgres",
-            host="localhost",
-            port="5432"
-        )
-    
-    connection.autocommit = True
-    return connection
+    try:
+        database_url = os.environ.get('DATABASE_URL')
+        if database_url and database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+            
+        if database_url:
+            connection = psycopg2.connect(database_url)
+        else:
+            # Local development fallback
+            connection = psycopg2.connect(
+                database="outreach_db",
+                user="postgres",
+                password="postgres",
+                host="localhost",
+                port="5432"
+            )
+        
+        connection.autocommit = True
+        return connection
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        raise
 
 # Initialize database tables
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create users table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    # Create targets table with user_id
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS targets (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    # Create snippets table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS snippets (
-        id SERIAL PRIMARY KEY,
-        target_id INTEGER REFERENCES targets(id),
-        content TEXT NOT NULL,
-        source_data JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Create users table if it doesn't exist
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Create targets table if it doesn't exist
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS targets (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Create snippets table if it doesn't exist
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS snippets (
+            id SERIAL PRIMARY KEY,
+            target_id INTEGER REFERENCES targets(id),
+            content TEXT NOT NULL,
+            source_data JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
 
-    # Modify api_usage table to track per-user usage
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS api_usage (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        date DATE NOT NULL,
-        openai_tokens_used INTEGER DEFAULT 0,
-        news_api_calls INTEGER DEFAULT 0,
-        UNIQUE(user_id, date)
-    )
-    ''')
-    
-    cursor.close()
-    conn.close()
+        # Create or update api_usage table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS api_usage (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            date DATE NOT NULL,
+            openai_tokens_used INTEGER DEFAULT 0,
+            news_api_calls INTEGER DEFAULT 0,
+            UNIQUE(user_id, date)
+        )
+        ''')
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        if conn:
+            conn.close()
 
 # Update tracking functions to include user_id
 def track_openai_usage(user_id, token_count):
@@ -288,19 +293,24 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        user_data = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if user_data and check_password_hash(user_data['password_hash'], password):
-            user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-            login_user(user)
-            return redirect(url_for('index'))
-        
-        flash('Invalid email or password')
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            user_data = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if user_data and check_password_hash(user_data['password_hash'], password):
+                user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                login_user(user)
+                return redirect(url_for('index'))
+            
+            flash('Invalid email or password')
+        except Exception as e:
+            print(f"Login error: {e}")
+            flash('An error occurred during login. Please try again.')
+    
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -309,10 +319,25 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if not email or not password:
+            flash('Email and password are required')
+            return render_template('register.html')
+        
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long')
+            return render_template('register.html')
         
         try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Check if user already exists
+            cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+            if cursor.fetchone():
+                flash('Email already registered')
+                return render_template('register.html')
+            
+            # Create new user
             cursor.execute(
                 "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
                 (email, generate_password_hash(password))
@@ -320,14 +345,17 @@ def register():
             user_id = cursor.fetchone()[0]
             conn.commit()
             
+            # Log the user in
             user = User(user_id, email, generate_password_hash(password))
             login_user(user)
-            return redirect(url_for('index'))
-        except psycopg2.IntegrityError:
-            flash('Email already registered')
-        finally:
+            
             cursor.close()
             conn.close()
+            
+            return redirect(url_for('index'))
+        except Exception as e:
+            print(f"Registration error: {e}")
+            flash('An error occurred during registration. Please try again.')
             
     return render_template('register.html')
 
@@ -337,7 +365,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# Update main route to require login
 @app.route('/')
 @login_required
 def index():
