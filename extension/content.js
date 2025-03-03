@@ -80,10 +80,18 @@ function createPanel() {
       // Fetch the login form HTML
       const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
         headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        },
+        credentials: 'include'  // Important for cookies
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const html = await response.text();
+      console.log('Login form HTML received:', html.substring(0, 200) + '...'); // Log first 200 chars
       
       // Create a temporary div to parse the HTML
       const temp = document.createElement('div');
@@ -92,6 +100,10 @@ function createPanel() {
       // Extract the form and its styles
       const form = temp.querySelector('form');
       const styles = temp.querySelector('style');
+      
+      if (!form) {
+        throw new Error('Login form not found in response');
+      }
       
       // Update the panel content
       content.innerHTML = '';
@@ -106,7 +118,11 @@ function createPanel() {
       const csrfInput = document.createElement('input');
       csrfInput.type = 'hidden';
       csrfInput.name = 'csrf_token';
-      csrfInput.value = temp.querySelector('input[name="csrf_token"]').value;
+      const csrfToken = temp.querySelector('input[name="csrf_token"]');
+      if (!csrfToken) {
+        throw new Error('CSRF token not found in form');
+      }
+      csrfInput.value = csrfToken.value;
       newForm.appendChild(csrfInput);
       
       // Add email field
@@ -186,10 +202,11 @@ function createPanel() {
         }
       });
     } catch (error) {
-      console.error('Error loading login form:', error);
+      console.error('Detailed login form error:', error);
       content.innerHTML = `
         <div style="text-align: center; color: red;">
-          <p>Error loading login form. Please try again.</p>
+          <p>Error loading login form: ${error.message}</p>
+          <p>Please try again or contact support if the issue persists.</p>
         </div>
       `;
     }
