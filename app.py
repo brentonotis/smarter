@@ -312,40 +312,24 @@ def is_login_allowed(email):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    form = FlaskForm()
     if request.method == 'POST':
-        if form.validate_on_submit():
-            email = request.form.get('email')
-            password = request.form.get('password')
-            
-            # Check if login is allowed
-            if not is_login_allowed(email):
-                remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-                flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.')
-                return render_template('login.html', form=form)
-            
-            try:
-                with get_db_connection() as conn:
-                    cursor = conn.cursor(cursor_factory=RealDictCursor)
-                    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                    user_data = cursor.fetchone()
-                    cursor.close()
-                    
-                    if user_data and check_password_hash(user_data['password_hash'], password):
-                        user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                        login_user(user)
-                        # Clear login attempts on successful login
-                        login_attempts[email] = []
-                        return redirect(url_for('index'))
-                    
-                    # Record failed attempt
-                    login_attempts[email].append(time.time())
-                    flash('Invalid email or password')
-            except Exception as e:
-                print(f"Login error: {e}")
-                flash('An error occurred during login. Please try again.')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        
+        if user and user.check_password(password):
+            login_user(user)
+            # Check if this is a login from the extension
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'status': 'success'})
+            return redirect(url_for('index'))
+        else:
+            flash('Invalid email or password')
     
-    return render_template('login.html', form=form)
+    # If this is a login request from the extension, return a special template
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return render_template('extension_login.html')
+    return render_template('login.html')
 
 def validate_password(password):
     """

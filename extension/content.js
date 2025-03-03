@@ -76,7 +76,30 @@ function createPanel() {
   `;
   loginButton.textContent = 'Login to Smarter';
   loginButton.onclick = () => {
-    window.open('https://smarter-865bc5a924ea.herokuapp.com/login', '_blank');
+    // Open a popup window for login
+    const popup = window.open(
+      'https://smarter-865bc5a924ea.herokuapp.com/login',
+      'Smarter Login',
+      'width=500,height=600,menubar=no,toolbar=no,location=no,status=no'
+    );
+    
+    // Listen for messages from the popup window
+    window.addEventListener('message', function(event) {
+      // Verify the origin of the message
+      if (event.origin !== 'https://smarter-865bc5a924ea.herokuapp.com') return;
+      
+      // Handle successful login
+      if (event.data.type === 'login_success') {
+        popup.close();
+        // Update the panel content to show logged-in state
+        content.innerHTML = `
+          <div style="text-align: center;">
+            <h3>Welcome to Smarter!</h3>
+            <p>You are now logged in.</p>
+          </div>
+        `;
+      }
+    });
   };
   
   content.appendChild(loginButton);
