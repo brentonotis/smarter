@@ -1,18 +1,25 @@
-chrome.action.onClicked.addListener((tab) => {
-  chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    function: togglePanel
-  });
-});
-
-function togglePanel() {
-  const panel = document.getElementById('smarter-panel');
-  if (panel) {
-    panel.remove();
-  } else {
-    createPanel();
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['content.js']
+    });
+    
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      function: () => {
+        const panel = document.getElementById('smarter-panel');
+        if (panel) {
+          panel.remove();
+        } else {
+          createPanel();
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error executing script:', error);
   }
-}
+});
 
 function createPanel() {
   const panel = document.createElement('div');
