@@ -353,7 +353,7 @@ def login():
                         # Clear login attempts on successful login
                         login_attempts[email] = []
                         
-                        # Check if this is a login from the extension
+                        # For AJAX requests, return JSON
                         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                             return jsonify({
                                 'status': 'success',
@@ -363,26 +363,46 @@ def login():
                                     'id': user.id
                                 }
                             })
-                        return redirect(url_for('index'))
+                        
+                        # For regular requests, redirect
+                        next_page = request.args.get('next')
+                        if not next_page or url_parse(next_page).netloc != '':
+                            next_page = url_for('index')
+                        return redirect(next_page)
                     
                     # Record failed attempt
                     login_attempts[email].append(time.time())
+                    
+                    # For AJAX requests, return JSON error
                     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                         return jsonify({
                             'status': 'error',
                             'message': 'Invalid email or password'
                         }), 401
+                    
+                    # For regular requests, flash message
                     flash('Invalid email or password')
+                    return render_template('login.html', form=form)
+                    
             except Exception as e:
-                print(f"Login error: {e}")
+                logger.error(f"Login error: {e}")
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return jsonify({
                         'status': 'error',
                         'message': 'An error occurred during login'
                     }), 500
                 flash('An error occurred during login. Please try again.')
+                return render_template('login.html', form=form)
+        else:
+            # Form validation failed
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid form data'
+                }), 400
+            return render_template('login.html', form=form)
     
-    # If this is a login request from the extension, return a special template
+    # GET request
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return render_template('extension_login.html')
     return render_template('login.html', form=form)

@@ -62,6 +62,8 @@ function createPanel() {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    position: relative;
+    isolation: isolate;
   `;
   
   const loginButton = document.createElement('button');
@@ -112,7 +114,11 @@ function createPanel() {
       // Create a new form with the same fields
       const newForm = document.createElement('form');
       newForm.method = 'POST';
-      newForm.action = 'https://smarter-865bc5a924ea.herokuapp.com/login';
+      newForm.style.cssText = `
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+      `;
       
       // Add CSRF token
       const csrfInput = document.createElement('input');
@@ -128,18 +134,20 @@ function createPanel() {
       // Add email field
       const emailGroup = document.createElement('div');
       emailGroup.className = 'form-group';
+      emailGroup.style.cssText = 'margin-bottom: 15px;';
       emailGroup.innerHTML = `
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" required>
+        <label for="email" style="display: block; margin-bottom: 5px;">Email:</label>
+        <input type="email" id="email" name="email" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
       `;
       newForm.appendChild(emailGroup);
       
       // Add password field
       const passwordGroup = document.createElement('div');
       passwordGroup.className = 'form-group';
+      passwordGroup.style.cssText = 'margin-bottom: 15px;';
       passwordGroup.innerHTML = `
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
+        <label for="password" style="display: block; margin-bottom: 5px;">Password:</label>
+        <input type="password" id="password" name="password" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
       `;
       newForm.appendChild(passwordGroup);
       
@@ -155,6 +163,7 @@ function createPanel() {
         border-radius: 4px;
         cursor: pointer;
         width: 100%;
+        font-size: 14px;
       `;
       newForm.appendChild(submitButton);
       
@@ -170,10 +179,11 @@ function createPanel() {
             method: 'POST',
             body: formData,
             headers: {
-              'X-Requested-With': 'XMLHttpRequest'
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
             },
-            credentials: 'include',  // Important for cookies
-            redirect: 'follow'       // Follow redirects automatically
+            credentials: 'include',
+            mode: 'cors'
           });
           
           const contentType = response.headers.get('content-type');
@@ -183,15 +193,14 @@ function createPanel() {
               // Update the panel content to show logged-in state
               content.innerHTML = `
                 <div style="text-align: center;">
-                  <h3>Welcome to Smarter!</h3>
-                  <p>You are now logged in as ${data.user.email}</p>
+                  <h3 style="margin-bottom: 15px;">Welcome to Smarter!</h3>
+                  <p style="color: #333;">You are now logged in as ${data.user.email}</p>
                 </div>
               `;
             } else {
               // Show error message from server
               const errorDiv = document.createElement('div');
-              errorDiv.style.color = 'red';
-              errorDiv.style.marginTop = '10px';
+              errorDiv.style.cssText = 'color: red; margin-top: 10px; text-align: center;';
               errorDiv.textContent = data.message || 'Login failed. Please try again.';
               newForm.appendChild(errorDiv);
             }
@@ -201,8 +210,7 @@ function createPanel() {
         } catch (error) {
           console.error('Login error:', error);
           const errorDiv = document.createElement('div');
-          errorDiv.style.color = 'red';
-          errorDiv.style.marginTop = '10px';
+          errorDiv.style.cssText = 'color: red; margin-top: 10px; text-align: center;';
           errorDiv.textContent = 'An error occurred. Please try again.';
           newForm.appendChild(errorDiv);
         }
