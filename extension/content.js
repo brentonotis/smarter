@@ -96,20 +96,67 @@ function createPanel() {
       // Update the panel content
       content.innerHTML = '';
       if (styles) content.appendChild(styles);
-      content.appendChild(form);
+      
+      // Create a new form with the same fields
+      const newForm = document.createElement('form');
+      newForm.method = 'POST';
+      newForm.action = 'https://smarter-865bc5a924ea.herokuapp.com/login';
+      
+      // Add CSRF token
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrf_token';
+      csrfInput.value = temp.querySelector('input[name="csrf_token"]').value;
+      newForm.appendChild(csrfInput);
+      
+      // Add email field
+      const emailGroup = document.createElement('div');
+      emailGroup.className = 'form-group';
+      emailGroup.innerHTML = `
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+      `;
+      newForm.appendChild(emailGroup);
+      
+      // Add password field
+      const passwordGroup = document.createElement('div');
+      passwordGroup.className = 'form-group';
+      passwordGroup.innerHTML = `
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+      `;
+      newForm.appendChild(passwordGroup);
+      
+      // Add submit button
+      const submitButton = document.createElement('button');
+      submitButton.type = 'submit';
+      submitButton.textContent = 'Login';
+      submitButton.style.cssText = `
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+      `;
+      newForm.appendChild(submitButton);
+      
+      content.appendChild(newForm);
       
       // Add event listener to the form
-      form.addEventListener('submit', async (e) => {
+      newForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const formData = new FormData(form);
+        const formData = new FormData(newForm);
         try {
           const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
             method: 'POST',
             body: formData,
             headers: {
               'X-Requested-With': 'XMLHttpRequest'
-            }
+            },
+            credentials: 'include'  // Important for cookies
           });
           
           const data = await response.json();
@@ -121,13 +168,30 @@ function createPanel() {
                 <p>You are now logged in.</p>
               </div>
             `;
+          } else {
+            // Show error message
+            const errorDiv = document.createElement('div');
+            errorDiv.style.color = 'red';
+            errorDiv.style.marginTop = '10px';
+            errorDiv.textContent = 'Login failed. Please try again.';
+            newForm.appendChild(errorDiv);
           }
         } catch (error) {
           console.error('Login error:', error);
+          const errorDiv = document.createElement('div');
+          errorDiv.style.color = 'red';
+          errorDiv.style.marginTop = '10px';
+          errorDiv.textContent = 'An error occurred. Please try again.';
+          newForm.appendChild(errorDiv);
         }
       });
     } catch (error) {
       console.error('Error loading login form:', error);
+      content.innerHTML = `
+        <div style="text-align: center; color: red;">
+          <p>Error loading login form. Please try again.</p>
+        </div>
+      `;
     }
   };
   
