@@ -116,6 +116,8 @@ serializer = URLSafeTimedSerializer(app.secret_key)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
 
 # User class for Flask-Login
 class User(UserMixin):
@@ -323,6 +325,9 @@ def is_login_allowed(email):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Clear any existing session data
+    session.clear()
+    
     form = FlaskForm()
     if request.method == 'POST':
         try:
@@ -366,7 +371,7 @@ def login():
                         
                         # For regular requests, redirect
                         next_page = request.args.get('next')
-                        if not next_page or url_parse(next_page).netloc != '':
+                        if not next_page or urlparse(next_page).netloc != '':
                             next_page = url_for('index')
                         return redirect(next_page)
                     
@@ -380,30 +385,27 @@ def login():
                             'message': 'Invalid email or password'
                         }), 401
                     
-                    # For regular requests, flash message
                     flash('Invalid email or password')
                     return render_template('login.html', form=form)
                     
         except Exception as e:
             logger.error(f"Login error: {e}")
+            # Only show one error message
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({
                     'status': 'error',
-                    'message': 'An error occurred during login'
+                    'message': 'An error occurred during login. Please try again.'
                 }), 500
             flash('An error occurred during login. Please try again.')
             return render_template('login.html', form=form)
-        finally:
-            if 'conn' in locals():
-                conn.close()
-    else:
-        # GET request
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'status': 'success',
-                'html': render_template('extension_login.html')
-            })
-        return render_template('login.html', form=form)
+    
+    # GET request
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'status': 'success',
+            'html': render_template('extension_login.html')
+        })
+    return render_template('login.html', form=form)
 
 def validate_password(password):
     """
@@ -490,6 +492,8 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
     return render_template('index.html')
 
 def log_performance(f):
