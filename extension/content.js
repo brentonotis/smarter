@@ -16,6 +16,8 @@ function createPanel() {
     z-index: 999999;
     display: flex;
     flex-direction: column;
+    transform: translate3d(0,0,0);
+    will-change: transform;
   `;
 
   const header = document.createElement('div');
@@ -64,6 +66,7 @@ function createPanel() {
     justify-content: center;
     position: relative;
     isolation: isolate;
+    contain: content;
   `;
   
   const loginButton = document.createElement('button');
@@ -83,21 +86,23 @@ function createPanel() {
       const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+          'Accept': 'application/json'
         },
-        credentials: 'include'  // Important for cookies
+        credentials: 'include'
       });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const html = await response.text();
-      console.log('Login form HTML received:', html.substring(0, 200) + '...'); // Log first 200 chars
+      const data = await response.json();
+      if (data.status !== 'success' || !data.html) {
+        throw new Error('Invalid response format');
+      }
       
       // Create a temporary div to parse the HTML
       const temp = document.createElement('div');
-      temp.innerHTML = html;
+      temp.innerHTML = data.html;
       
       // Extract the form and its styles
       const form = temp.querySelector('form');
@@ -186,14 +191,7 @@ function createPanel() {
             mode: 'cors'
           });
           
-          let data;
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-          } else {
-            console.error('Unexpected content type:', contentType);
-            throw new Error('Server returned non-JSON response');
-          }
+          const data = await response.json();
           
           if (data.status === 'success') {
             // Update the panel content to show logged-in state

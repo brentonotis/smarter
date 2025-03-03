@@ -399,7 +399,10 @@ def login():
     else:
         # GET request
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return render_template('extension_login.html')
+            return jsonify({
+                'status': 'success',
+                'html': render_template('extension_login.html')
+            })
         return render_template('login.html', form=form)
 
 def validate_password(password):
