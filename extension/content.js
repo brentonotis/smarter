@@ -18,6 +18,7 @@ function createPanel() {
     flex-direction: column;
     transform: translate3d(0,0,0);
     will-change: transform;
+    contain: layout size;
   `;
 
   const header = document.createElement('div');
@@ -191,9 +192,13 @@ function createPanel() {
             mode: 'cors'
           });
           
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
           const data = await response.json();
           
-          if (data.status === 'success') {
+          if (data.status === 'success' && data.user && data.user.email) {
             // Update the panel content to show logged-in state
             content.innerHTML = `
               <div style="text-align: center;">
