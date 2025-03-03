@@ -695,7 +695,7 @@ csrf = CSRFProtect(app)
 def add_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Frame-Options'] = 'ALLOW-FROM https://smarter-865bc5a924ea.herokuapp.com/'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
@@ -705,6 +705,7 @@ def add_security_headers(response):
         "img-src 'self' data: https:; "
         "connect-src 'self' https:; "
         "frame-src 'self';"
+        "frame-ancestors 'self' https://smarter-865bc5a924ea.herokuapp.com/ *"
     )
     return response
 
@@ -729,6 +730,10 @@ def cleanup_redis_cache():
 def schedule_redis_cleanup():
     cleanup_redis_cache()
     threading.Timer(3600, schedule_redis_cleanup).start()
+
+@app.route('/bookmarklet')
+def bookmarklet():
+    return render_template('bookmarklet.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

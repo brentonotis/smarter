@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smarter Bookmarklet</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .bookmarklet {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        .bookmarklet:hover {
+            background: #0056b3;
+        }
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Smarter Bookmarklet</h1>
+    <div class="instructions">
+        <h2>How to Install:</h2>
+        <ol>
+            <li>Drag the bookmarklet below to your browser's bookmarks bar</li>
+            <li>Or right-click the bookmarklet and select "Bookmark this link"</li>
+        </ol>
+        <h2>How to Use:</h2>
+        <ol>
+            <li>Click the bookmarklet on any webpage to open the Smarter panel</li>
+            <li>Drag the panel by its header to move it around</li>
+            <li>Resize the panel using the handle in the bottom-right corner</li>
+            <li>Click the × button to close the panel</li>
+        </ol>
+    </div>
+    <a class="bookmarklet" href="javascript:(function(){var script=document.createElement('script');script.src='https://smarter-865bc5a924ea.herokuapp.com/static/js/bookmarklet.js';document.body.appendChild(script);})();">Smarter</a>
+    <p>Note: If you're having trouble dragging the bookmarklet, try copying the code below and creating a new bookmark manually:</p>
+    <code>javascript:(function(){var script=document.createElement('script');script.src='https://smarter-865bc5a924ea.herokuapp.com/static/js/bookmarklet.js';document.body.appendChild(script);})();</code>
+</body>
+</html> 
