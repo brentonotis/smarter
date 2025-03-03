@@ -698,14 +698,16 @@ def add_security_headers(response):
     response.headers['X-Frame-Options'] = 'ALLOWALL'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://smarter-865bc5a924ea.herokuapp.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: https:; "
-        "connect-src 'self' https:; "
-        "frame-src 'self' *; "  # Allow frames from any domain
-        "frame-ancestors *"  # Allow being embedded in any domain
+        "default-src 'self' *; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' *; "
+        "style-src 'self' 'unsafe-inline' *; "
+        "font-src 'self' *; "
+        "img-src 'self' data: *; "
+        "connect-src 'self' *; "
+        "frame-src *; "
+        "frame-ancestors *; "
+        "form-action 'self' *; "
+        "base-uri 'self' *"
     )
     return response
 
