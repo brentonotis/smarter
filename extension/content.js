@@ -75,31 +75,60 @@ function createPanel() {
     font-size: 16px;
   `;
   loginButton.textContent = 'Login to Smarter';
-  loginButton.onclick = () => {
-    // Open a popup window for login
-    const popup = window.open(
-      'https://smarter-865bc5a924ea.herokuapp.com/login',
-      'Smarter Login',
-      'width=500,height=600,menubar=no,toolbar=no,location=no,status=no'
-    );
-    
-    // Listen for messages from the popup window
-    window.addEventListener('message', function(event) {
-      // Verify the origin of the message
-      if (event.origin !== 'https://smarter-865bc5a924ea.herokuapp.com') return;
+  loginButton.onclick = async () => {
+    try {
+      // Fetch the login form HTML
+      const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      const html = await response.text();
       
-      // Handle successful login
-      if (event.data.type === 'login_success') {
-        popup.close();
-        // Update the panel content to show logged-in state
-        content.innerHTML = `
-          <div style="text-align: center;">
-            <h3>Welcome to Smarter!</h3>
-            <p>You are now logged in.</p>
-          </div>
-        `;
-      }
-    });
+      // Create a temporary div to parse the HTML
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      
+      // Extract the form and its styles
+      const form = temp.querySelector('form');
+      const styles = temp.querySelector('style');
+      
+      // Update the panel content
+      content.innerHTML = '';
+      if (styles) content.appendChild(styles);
+      content.appendChild(form);
+      
+      // Add event listener to the form
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        try {
+          const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+          
+          const data = await response.json();
+          if (data.status === 'success') {
+            // Update the panel content to show logged-in state
+            content.innerHTML = `
+              <div style="text-align: center;">
+                <h3>Welcome to Smarter!</h3>
+                <p>You are now logged in.</p>
+              </div>
+            `;
+          }
+        } catch (error) {
+          console.error('Login error:', error);
+        }
+      });
+    } catch (error) {
+      console.error('Error loading login form:', error);
+    }
   };
   
   content.appendChild(loginButton);
