@@ -325,22 +325,22 @@ def is_login_allowed(email):
 def login():
     form = FlaskForm()
     if request.method == 'POST':
-        if form.validate_on_submit():
-            email = request.form.get('email')
-            password = request.form.get('password')
-            
-            # Check if login is allowed
-            if not is_login_allowed(email):
-                remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
-                    }), 429
-                flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.')
-                return render_template('login.html', form=form)
-            
-            try:
+        try:
+            if form.validate_on_submit():
+                email = request.form.get('email')
+                password = request.form.get('password')
+                
+                # Check if login is allowed
+                if not is_login_allowed(email):
+                    remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify({
+                            'status': 'error',
+                            'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
+                        }), 429
+                    flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.')
+                    return render_template('login.html', form=form)
+                
                 with get_db_connection() as conn:
                     cursor = conn.cursor(cursor_factory=RealDictCursor)
                     cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
@@ -384,28 +384,23 @@ def login():
                     flash('Invalid email or password')
                     return render_template('login.html', form=form)
                     
-            except Exception as e:
-                logger.error(f"Login error: {e}")
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'An error occurred during login'
-                    }), 500
-                flash('An error occurred during login. Please try again.')
-                return render_template('login.html', form=form)
-        else:
-            # Form validation failed
+        except Exception as e:
+            logger.error(f"Login error: {e}")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({
                     'status': 'error',
-                    'message': 'Invalid form data'
-                }), 400
+                    'message': 'An error occurred during login'
+                }), 500
+            flash('An error occurred during login. Please try again.')
             return render_template('login.html', form=form)
-    
-    # GET request
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return render_template('extension_login.html')
-    return render_template('login.html', form=form)
+        finally:
+            if 'conn' in locals():
+                conn.close()
+    else:
+        # GET request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return render_template('extension_login.html')
+        return render_template('login.html', form=form)
 
 def validate_password(password):
     """

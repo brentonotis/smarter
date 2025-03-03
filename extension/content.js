@@ -186,26 +186,29 @@ function createPanel() {
             mode: 'cors'
           });
           
+          let data;
           const contentType = response.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            if (data.status === 'success') {
-              // Update the panel content to show logged-in state
-              content.innerHTML = `
-                <div style="text-align: center;">
-                  <h3 style="margin-bottom: 15px;">Welcome to Smarter!</h3>
-                  <p style="color: #333;">You are now logged in as ${data.user.email}</p>
-                </div>
-              `;
-            } else {
-              // Show error message from server
-              const errorDiv = document.createElement('div');
-              errorDiv.style.cssText = 'color: red; margin-top: 10px; text-align: center;';
-              errorDiv.textContent = data.message || 'Login failed. Please try again.';
-              newForm.appendChild(errorDiv);
-            }
+            data = await response.json();
           } else {
-            throw new Error('Unexpected response format');
+            console.error('Unexpected content type:', contentType);
+            throw new Error('Server returned non-JSON response');
+          }
+          
+          if (data.status === 'success') {
+            // Update the panel content to show logged-in state
+            content.innerHTML = `
+              <div style="text-align: center;">
+                <h3 style="margin-bottom: 15px;">Welcome to Smarter!</h3>
+                <p style="color: #333;">You are now logged in as ${data.user.email}</p>
+              </div>
+            `;
+          } else {
+            // Show error message from server
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = 'color: red; margin-top: 10px; text-align: center;';
+            errorDiv.textContent = data.message || 'Login failed. Please try again.';
+            newForm.appendChild(errorDiv);
           }
         } catch (error) {
           console.error('Login error:', error);
