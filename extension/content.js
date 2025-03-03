@@ -5,41 +5,39 @@ function createPanel() {
   const panel = document.createElement('div');
   panel.id = 'smarter-panel';
   panel.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    width: 400px;
-    height: 600px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    z-index: 999999;
-    display: flex;
-    flex-direction: column;
-    transform: translate3d(0,0,0);
-    will-change: transform;
-    contain: layout size;
-    isolation: isolate;
     position: fixed !important;
     top: 20px !important;
     right: 20px !important;
+    width: 400px !important;
+    height: 600px !important;
+    background: white !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    transform: translate3d(0,0,0) !important;
+    will-change: transform !important;
+    contain: layout size !important;
+    isolation: isolate !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: hidden !important;
   `;
 
   const header = document.createElement('div');
   header.id = 'smarter-panel-header';
   header.style.cssText = `
-    padding: 10px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    border-radius: 8px 8px 0 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: move;
-    position: relative;
-    z-index: 1;
+    padding: 10px !important;
+    background: #f8f9fa !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    border-radius: 8px 8px 0 0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    cursor: move !important;
+    position: relative !important;
+    z-index: 1 !important;
   `;
 
   const title = document.createElement('div');
@@ -51,12 +49,12 @@ function createPanel() {
   const close = document.createElement('button');
   close.id = 'smarter-panel-close';
   close.style.cssText = `
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #666;
-    padding: 0 5px;
+    background: none !important;
+    border: none !important;
+    font-size: 20px !important;
+    cursor: pointer !important;
+    color: #666 !important;
+    padding: 0 5px !important;
   `;
   close.innerHTML = '×';
   close.onclick = () => panel.remove();
@@ -65,29 +63,29 @@ function createPanel() {
   const content = document.createElement('div');
   content.id = 'smarter-panel-content';
   content.style.cssText = `
-    flex: 1;
-    border-radius: 0 0 8px 8px;
-    overflow: hidden;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    isolation: isolate;
-    contain: content;
-    background: white;
+    flex: 1 !important;
+    border-radius: 0 0 8px 8px !important;
+    overflow: hidden !important;
+    padding: 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: relative !important;
+    isolation: isolate !important;
+    contain: content !important;
+    background: white !important;
   `;
   
   const loginButton = document.createElement('button');
   loginButton.style.cssText = `
-    padding: 10px 20px;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
+    padding: 10px 20px !important;
+    background: #007bff !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 5px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
   `;
   loginButton.textContent = 'Login to Smarter';
   loginButton.onclick = async () => {
@@ -130,9 +128,9 @@ function createPanel() {
       const newForm = document.createElement('form');
       newForm.method = 'POST';
       newForm.style.cssText = `
-        width: 100%;
-        max-width: 300px;
-        margin: 0 auto;
+        width: 100% !important;
+        max-width: 300px !important;
+        margin: 0 auto !important;
       `;
       
       // Add CSRF token
@@ -149,7 +147,7 @@ function createPanel() {
       // Add email field
       const emailGroup = document.createElement('div');
       emailGroup.className = 'form-group';
-      emailGroup.style.cssText = 'margin-bottom: 15px;';
+      emailGroup.style.cssText = 'margin-bottom: 15px !important;';
       emailGroup.innerHTML = `
         <label for="email" style="display: block; margin-bottom: 5px;">Email:</label>
         <input type="email" id="email" name="email" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
@@ -159,7 +157,7 @@ function createPanel() {
       // Add password field
       const passwordGroup = document.createElement('div');
       passwordGroup.className = 'form-group';
-      passwordGroup.style.cssText = 'margin-bottom: 15px;';
+      passwordGroup.style.cssText = 'margin-bottom: 15px !important;';
       passwordGroup.innerHTML = `
         <label for="password" style="display: block; margin-bottom: 5px;">Password:</label>
         <input type="password" id="password" name="password" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
@@ -171,14 +169,14 @@ function createPanel() {
       submitButton.type = 'submit';
       submitButton.textContent = 'Login';
       submitButton.style.cssText = `
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 4px;
-        cursor: pointer;
-        width: 100%;
-        font-size: 14px;
+        background: #007bff !important;
+        color: white !important;
+        border: none !important;
+        padding: 10px 20px !important;
+        border-radius: 4px !important;
+        cursor: pointer !important;
+        width: 100% !important;
+        font-size: 14px !important;
       `;
       newForm.appendChild(submitButton);
       
