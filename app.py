@@ -20,6 +20,7 @@ from logging.handlers import RotatingFileHandler
 from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 from flask_wtf import FlaskForm
+from flask_cors import CORS
 import re
 import gc
 import threading
@@ -41,6 +42,16 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-pro
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session timeout to 24 hours
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
 app.config['NEWS_API_DAILY_LIMIT'] = 95
+
+# Initialize CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
