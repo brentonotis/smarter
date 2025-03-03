@@ -695,17 +695,17 @@ csrf = CSRFProtect(app)
 def add_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'ALLOW-FROM https://smarter-865bc5a924ea.herokuapp.com/'
+    response.headers['X-Frame-Options'] = 'ALLOW-FROM *'  # Allow embedding from any domain
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://smarter-865bc5a924ea.herokuapp.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' https:; "
-        "frame-src 'self';"
-        "frame-ancestors 'self' https://smarter-865bc5a924ea.herokuapp.com/ *"
+        "frame-src 'self' *; "  # Allow frames from any domain
+        "frame-ancestors 'self' *"  # Allow being embedded in any domain
     )
     return response
 
