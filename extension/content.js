@@ -20,6 +20,11 @@ function createPanel() {
     will-change: transform;
     contain: layout size;
     isolation: isolate;
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    margin: 0 !important;
+    padding: 0 !important;
   `;
 
   const header = document.createElement('div');
@@ -33,6 +38,8 @@ function createPanel() {
     justify-content: space-between;
     align-items: center;
     cursor: move;
+    position: relative;
+    z-index: 1;
   `;
 
   const title = document.createElement('div');
@@ -69,6 +76,7 @@ function createPanel() {
     position: relative;
     isolation: isolate;
     contain: content;
+    background: white;
   `;
   
   const loginButton = document.createElement('button');
