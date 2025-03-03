@@ -55,14 +55,16 @@ CORS(app, resources={
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url, 
-    ssl=True,  # Enable SSL
-    ssl_cert_reqs=None,  # Don't verify SSL certificates
-    decode_responses=True,  # Decode responses to save memory
-    socket_timeout=2,  # Add timeout
+redis_pool = redis.ConnectionPool.from_url(
+    redis_url,
+    ssl=True,
+    ssl_cert_reqs=None,
+    decode_responses=True,
+    socket_timeout=2,
     socket_connect_timeout=2,
-    max_connections=10  # Limit connections
+    max_connections=10
 )
+redis_client = redis.Redis(connection_pool=redis_pool)
 
 # Cache settings
 CACHE_TIMEOUT = {
@@ -93,9 +95,15 @@ def cache_with_timeout(timeout):
                 
                 return result
             except redis.exceptions.RedisError as e:
-                print(f"Redis error: {e}")
+                logger.error(f"Redis error in cache: {e}")
                 # If Redis fails, just execute the function without caching
                 return f(*args, **kwargs)
+            finally:
+                # Ensure we're not keeping connections open
+                try:
+                    redis_client.connection_pool.disconnect()
+                except:
+                    pass
         return decorated_function
     return decorator
 
@@ -354,11 +362,13 @@ def login():
                     
                     if user_data and check_password_hash(user_data['password_hash'], password):
                         user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                        login_user(user)
+                        login_user(user, remember=True)  # Enable remember me
+                        session.permanent = True
+                        
                         # Clear login attempts on successful login
                         login_attempts[email] = []
                         
-                        # For AJAX requests, return JSON
+                        # For AJAX requests (extension), return JSON
                         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                             return jsonify({
                                 'status': 'success',
@@ -776,7 +786,18 @@ def add_security_headers(response):
 # Serve static files in production
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    return send_from_directory(app.static_folder or 'static', filename)
+    if app.static_folder is None:
+        app.static_folder = 'static'
+    try:
+        return send_from_directory(app.static_folder, filename)
+    except Exception as e:
+        logger.error(f"Static file error: {e}")
+        return '', 404
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                             'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 # Add cache cleanup for Redis
 def cleanup_redis_cache():
