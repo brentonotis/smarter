@@ -30,6 +30,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: move;
         }
         #smarter-panel-title {
             font-weight: bold;

@@ -52,8 +52,8 @@
             <li>Click the × button to close the panel</li>
         </ol>
     </div>
-    <a class="bookmarklet" href="javascript:(function(){var script=document.createElement('script');script.src='https://smarter-865bc5a924ea.herokuapp.com/static/js/bookmarklet.js';document.body.appendChild(script);})();">Smarter</a>
+    <a class="bookmarklet" href="javascript:(function(){var s=document.createElement('script');s.src='https://smarter-865bc5a924ea.herokuapp.com/static/js/bookmarklet.js';s.onload=function(){document.body.removeChild(s);};document.body.appendChild(s);})();">Smarter</a>
     <p>Note: If you're having trouble dragging the bookmarklet, try copying the code below and creating a new bookmark manually:</p>
-    <code>javascript:(function(){var script=document.createElement('script');script.src='https://smarter-865bc5a924ea.herokuapp.com/static/js/bookmarklet.js';document.body.appendChild(script);})();</code>
+    <code>javascript:(function(){var s=document.createElement('script');s.src='https://smarter-865bc5a924ea.herokuapp.com/static/js/bookmarklet.js';s.onload=function(){document.body.removeChild(s);};document.body.appendChild(s);})();</code>
 </body>
 </html> 
