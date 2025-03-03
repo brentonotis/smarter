@@ -127,6 +127,9 @@ function createPanel() {
       // Create a new form with the same fields
       const newForm = document.createElement('form');
       newForm.method = 'POST';
+      newForm.id = 'smarter-login-form';
+      newForm.setAttribute('role', 'form');
+      newForm.setAttribute('aria-label', 'Login Form');
       newForm.style.cssText = `
         width: 100% !important;
         max-width: 300px !important;
@@ -136,6 +139,7 @@ function createPanel() {
       // Add CSRF token
       const csrfInput = document.createElement('input');
       csrfInput.type = 'hidden';
+      csrfInput.id = 'smarter-csrf-token';
       csrfInput.name = 'csrf_token';
       const csrfToken = temp.querySelector('input[name="csrf_token"]');
       if (!csrfToken) {
@@ -147,27 +151,47 @@ function createPanel() {
       // Add email field
       const emailGroup = document.createElement('div');
       emailGroup.className = 'form-group';
+      emailGroup.setAttribute('role', 'group');
+      emailGroup.setAttribute('aria-labelledby', 'smarter-email-label');
       emailGroup.style.cssText = 'margin-bottom: 15px !important;';
       emailGroup.innerHTML = `
-        <label for="email" style="display: block; margin-bottom: 5px;">Email:</label>
-        <input type="email" id="email" name="email" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <label id="smarter-email-label" for="smarter-email-input" style="display: block; margin-bottom: 5px;">Email:</label>
+        <input type="email" 
+               id="smarter-email-input" 
+               name="email" 
+               autocomplete="username email" 
+               required 
+               aria-required="true"
+               aria-label="Email Address"
+               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
       `;
       newForm.appendChild(emailGroup);
       
       // Add password field
       const passwordGroup = document.createElement('div');
       passwordGroup.className = 'form-group';
+      passwordGroup.setAttribute('role', 'group');
+      passwordGroup.setAttribute('aria-labelledby', 'smarter-password-label');
       passwordGroup.style.cssText = 'margin-bottom: 15px !important;';
       passwordGroup.innerHTML = `
-        <label for="password" style="display: block; margin-bottom: 5px;">Password:</label>
-        <input type="password" id="password" name="password" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <label id="smarter-password-label" for="smarter-password-input" style="display: block; margin-bottom: 5px;">Password:</label>
+        <input type="password" 
+               id="smarter-password-input" 
+               name="password" 
+               autocomplete="current-password" 
+               required 
+               aria-required="true"
+               aria-label="Password"
+               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
       `;
       newForm.appendChild(passwordGroup);
       
       // Add submit button
       const submitButton = document.createElement('button');
       submitButton.type = 'submit';
+      submitButton.id = 'smarter-submit-button';
       submitButton.textContent = 'Login';
+      submitButton.setAttribute('aria-label', 'Submit login form');
       submitButton.style.cssText = `
         background: #007bff !important;
         color: white !important;
