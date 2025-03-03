@@ -332,6 +332,11 @@ def login():
             # Check if login is allowed
             if not is_login_allowed(email):
                 remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
+                    }), 429
                 flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.')
                 return render_template('login.html', form=form)
             
@@ -350,14 +355,31 @@ def login():
                         
                         # Check if this is a login from the extension
                         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                            return jsonify({'status': 'success'})
+                            return jsonify({
+                                'status': 'success',
+                                'message': 'Login successful',
+                                'user': {
+                                    'email': user.email,
+                                    'id': user.id
+                                }
+                            })
                         return redirect(url_for('index'))
                     
                     # Record failed attempt
                     login_attempts[email].append(time.time())
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify({
+                            'status': 'error',
+                            'message': 'Invalid email or password'
+                        }), 401
                     flash('Invalid email or password')
             except Exception as e:
                 print(f"Login error: {e}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'An error occurred during login'
+                    }), 500
                 flash('An error occurred during login. Please try again.')
     
     # If this is a login request from the extension, return a special template

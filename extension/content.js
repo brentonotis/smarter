@@ -172,25 +172,31 @@ function createPanel() {
             headers: {
               'X-Requested-With': 'XMLHttpRequest'
             },
-            credentials: 'include'  // Important for cookies
+            credentials: 'include',  // Important for cookies
+            redirect: 'follow'       // Follow redirects automatically
           });
           
-          const data = await response.json();
-          if (data.status === 'success') {
-            // Update the panel content to show logged-in state
-            content.innerHTML = `
-              <div style="text-align: center;">
-                <h3>Welcome to Smarter!</h3>
-                <p>You are now logged in.</p>
-              </div>
-            `;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            if (data.status === 'success') {
+              // Update the panel content to show logged-in state
+              content.innerHTML = `
+                <div style="text-align: center;">
+                  <h3>Welcome to Smarter!</h3>
+                  <p>You are now logged in as ${data.user.email}</p>
+                </div>
+              `;
+            } else {
+              // Show error message from server
+              const errorDiv = document.createElement('div');
+              errorDiv.style.color = 'red';
+              errorDiv.style.marginTop = '10px';
+              errorDiv.textContent = data.message || 'Login failed. Please try again.';
+              newForm.appendChild(errorDiv);
+            }
           } else {
-            // Show error message
-            const errorDiv = document.createElement('div');
-            errorDiv.style.color = 'red';
-            errorDiv.style.marginTop = '10px';
-            errorDiv.textContent = 'Login failed. Please try again.';
-            newForm.appendChild(errorDiv);
+            throw new Error('Unexpected response format');
           }
         } catch (error) {
           console.error('Login error:', error);
