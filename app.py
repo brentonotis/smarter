@@ -695,7 +695,7 @@ csrf = CSRFProtect(app)
 def add_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'ALLOW-FROM *'  # Allow embedding from any domain
+    response.headers['X-Frame-Options'] = 'ALLOWALL'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
@@ -705,7 +705,7 @@ def add_security_headers(response):
         "img-src 'self' data: https:; "
         "connect-src 'self' https:; "
         "frame-src 'self' *; "  # Allow frames from any domain
-        "frame-ancestors 'self' *"  # Allow being embedded in any domain
+        "frame-ancestors *"  # Allow being embedded in any domain
     )
     return response
 
