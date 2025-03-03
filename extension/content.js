@@ -19,6 +19,7 @@ function createPanel() {
     transform: translate3d(0,0,0);
     will-change: transform;
     contain: layout size;
+    isolation: isolate;
   `;
 
   const header = document.createElement('div');
