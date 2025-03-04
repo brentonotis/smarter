@@ -219,12 +219,17 @@ function createPanel() {
             method: 'POST',
             body: formData,
             headers: {
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
             },
             credentials: 'include',
             mode: 'cors',
             referrerPolicy: 'no-referrer'
           });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
           
           const data = await response.json();
           

@@ -342,18 +342,16 @@ def is_login_allowed(email):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # If user is already logged in, redirect to index
+    # If user is already logged in, return success
     if current_user.is_authenticated:
-        if request.headers.get('Accept') == 'application/json':
-            return jsonify({
-                'status': 'success',
-                'message': 'Already logged in',
-                'user': {
-                    'email': current_user.email,
-                    'id': current_user.id
-                }
-            })
-        return redirect(url_for('index'))
+        return jsonify({
+            'status': 'success',
+            'message': 'Already logged in',
+            'user': {
+                'email': current_user.email,
+                'id': current_user.id
+            }
+        })
     
     # Clear any existing session data
     session.clear()
@@ -361,49 +359,49 @@ def login():
     form = FlaskForm()
     if request.method == 'POST':
         try:
-            if form.validate_on_submit():
-                email = request.form.get('email')
-                password = request.form.get('password')
+            # Always treat as AJAX request for extension
+            email = request.form.get('email')
+            password = request.form.get('password')
+            
+            # Check if login is allowed
+            if not is_login_allowed(email):
+                remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
+                }), 429
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user_data = cursor.fetchone()
+                cursor.close()
                 
-                # Check if login is allowed
-                if not is_login_allowed(email):
-                    remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
-                    }), 429
-                
-                with get_db_connection() as conn:
-                    cursor = conn.cursor(cursor_factory=RealDictCursor)
-                    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                    user_data = cursor.fetchone()
-                    cursor.close()
+                if user_data and check_password_hash(user_data['password_hash'], password):
+                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                    login_user(user, remember=True)  # Enable remember me
+                    session.permanent = True
                     
-                    if user_data and check_password_hash(user_data['password_hash'], password):
-                        user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                        login_user(user, remember=True)  # Enable remember me
-                        session.permanent = True
-                        
-                        # Clear login attempts on successful login
-                        login_attempts[email] = []
-                        
-                        return jsonify({
-                            'status': 'success',
-                            'message': 'Login successful',
-                            'user': {
-                                'email': user.email,
-                                'id': user.id
-                            }
-                        })
-                    
-                    # Record failed attempt
-                    login_attempts[email].append(time.time())
+                    # Clear login attempts on successful login
+                    login_attempts[email] = []
                     
                     return jsonify({
-                        'status': 'error',
-                        'message': 'Invalid email or password'
-                    }), 401
-                    
+                        'status': 'success',
+                        'message': 'Login successful',
+                        'user': {
+                            'email': user.email,
+                            'id': user.id
+                        }
+                    })
+                
+                # Record failed attempt
+                login_attempts[email].append(time.time())
+                
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid email or password'
+                }), 401
+                
         except Exception as e:
             logger.error(f"Login error: {e}")
             return jsonify({
