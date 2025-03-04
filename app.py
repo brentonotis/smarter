@@ -355,13 +355,10 @@ def login():
                 # Check if login is allowed
                 if not is_login_allowed(email):
                     remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                        return jsonify({
-                            'status': 'error',
-                            'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
-                        }), 429
-                    flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.')
-                    return render_template('login.html', form=form)
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
+                    }), 429
                 
                 with get_db_connection() as conn:
                     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -377,48 +374,32 @@ def login():
                         # Clear login attempts on successful login
                         login_attempts[email] = []
                         
-                        # For AJAX requests (extension), return JSON
-                        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                            return jsonify({
-                                'status': 'success',
-                                'message': 'Login successful',
-                                'user': {
-                                    'email': user.email,
-                                    'id': user.id
-                                }
-                            })
-                        
-                        # For regular requests, redirect
-                        next_page = request.args.get('next')
-                        if not next_page or urlparse(next_page).netloc != '':
-                            next_page = url_for('index')
-                        return redirect(next_page)
+                        return jsonify({
+                            'status': 'success',
+                            'message': 'Login successful',
+                            'user': {
+                                'email': user.email,
+                                'id': user.id
+                            }
+                        })
                     
                     # Record failed attempt
                     login_attempts[email].append(time.time())
                     
-                    # For AJAX requests, return JSON error
-                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                        return jsonify({
-                            'status': 'error',
-                            'message': 'Invalid email or password'
-                        }), 401
-                    
-                    flash('Invalid email or password')
-                    return render_template('login.html', form=form)
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Invalid email or password'
+                    }), 401
                     
         except Exception as e:
             logger.error(f"Login error: {e}")
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({
-                    'status': 'error',
-                    'message': 'An error occurred during login. Please try again.'
-                }), 500
-            flash('An error occurred during login. Please try again.')
-            return render_template('login.html', form=form)
+            return jsonify({
+                'status': 'error',
+                'message': 'An error occurred during login. Please try again.'
+            }), 500
     
     # GET request
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if request.headers.get('Accept') == 'application/json':
         return jsonify({
             'status': 'success',
             'html': render_template('extension_login.html')
