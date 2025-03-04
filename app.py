@@ -342,6 +342,19 @@ def is_login_allowed(email):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # If user is already logged in, redirect to index
+    if current_user.is_authenticated:
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({
+                'status': 'success',
+                'message': 'Already logged in',
+                'user': {
+                    'email': current_user.email,
+                    'id': current_user.id
+                }
+            })
+        return redirect(url_for('index'))
+    
     # Clear any existing session data
     session.clear()
     
@@ -491,8 +504,25 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    # If user is not authenticated, redirect to login
     if not current_user.is_authenticated:
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({
+                'status': 'error',
+                'message': 'Not authenticated'
+            }), 401
         return redirect(url_for('login'))
+    
+    # If it's an AJAX request, return JSON
+    if request.headers.get('Accept') == 'application/json':
+        return jsonify({
+            'status': 'success',
+            'user': {
+                'email': current_user.email,
+                'id': current_user.id
+            }
+        })
+    
     return render_template('index.html')
 
 def log_performance(f):
