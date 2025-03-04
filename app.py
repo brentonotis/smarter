@@ -924,6 +924,36 @@ def extension_login():
             'message': 'An error occurred during login. Please try again.'
         }), 500
 
+@app.route('/api/extension/login-form', methods=['GET'])
+def extension_login_form():
+    try:
+        # If user is already logged in, return success
+        if current_user.is_authenticated:
+            return jsonify({
+                'status': 'success',
+                'message': 'Already logged in',
+                'user': {
+                    'email': current_user.email,
+                    'id': current_user.id
+                }
+            })
+        
+        # Generate a new CSRF token
+        form = FlaskForm()
+        csrf_token = form.csrf_token.current_token
+        
+        # Return the login form HTML
+        return jsonify({
+            'status': 'success',
+            'html': render_template('extension_login.html', csrf_token=csrf_token)
+        })
+    except Exception as e:
+        logger.error(f"Extension login form error: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while loading the login form.'
+        }), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)

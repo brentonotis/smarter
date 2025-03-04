@@ -91,7 +91,7 @@ function createPanel() {
   loginButton.onclick = async () => {
     try {
       // Fetch the login form HTML
-      const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
+      const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login-form', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -144,11 +144,7 @@ function createPanel() {
       csrfInput.type = 'hidden';
       csrfInput.id = 'smarter-csrf-token';
       csrfInput.name = 'csrf_token';
-      const csrfToken = temp.querySelector('input[name="csrf_token"]');
-      if (!csrfToken) {
-        throw new Error('CSRF token not found in form');
-      }
-      csrfInput.value = csrfToken.value;
+      csrfInput.value = data.csrf_token;
       newForm.appendChild(csrfInput);
       
       // Add email field
