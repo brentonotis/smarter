@@ -94,7 +94,6 @@ function createPanel() {
       const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
         method: 'GET',
         headers: {
-          'X-Requested-With': 'XMLHttpRequest',
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
@@ -220,7 +219,6 @@ function createPanel() {
             method: 'POST',
             body: formData,
             headers: {
-              'X-Requested-With': 'XMLHttpRequest',
               'Accept': 'application/json'
             },
             credentials: 'include',
