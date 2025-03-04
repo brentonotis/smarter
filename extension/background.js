@@ -1,3 +1,25 @@
+// Listen for installation
+chrome.runtime.onInstalled.addListener(function() {
+    // Initialize any extension data
+    chrome.storage.local.get(['smarter_session'], function(result) {
+        if (!result.smarter_session) {
+            chrome.storage.local.set({
+                'smarter_session': null
+            });
+        }
+    });
+});
+
+// Listen for messages from content script
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === 'checkSession') {
+        chrome.storage.local.get(['smarter_session'], function(result) {
+            sendResponse(result.smarter_session);
+        });
+        return true; // Will respond asynchronously
+    }
+});
+
 chrome.action.onClicked.addListener(async (tab) => {
   try {
     await chrome.scripting.executeScript({

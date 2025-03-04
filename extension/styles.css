@@ -1,0 +1,123 @@
+/* Smarter Extension Styles */
+#smarter-panel {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  width: 400px !important;
+  height: 600px !important;
+  background: white !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transform: translate3d(0,0,0) !important;
+  will-change: transform !important;
+  contain: layout size !important;
+  isolation: isolate !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+#smarter-panel-header {
+  padding: 10px !important;
+  background: #f8f9fa !important;
+  border-bottom: 1px solid #dee2e6 !important;
+  border-radius: 8px 8px 0 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  cursor: move !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+#smarter-panel-title {
+  font-weight: bold !important;
+  color: #333 !important;
+}
+
+#smarter-panel-close {
+  background: none !important;
+  border: none !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  color: #666 !important;
+  padding: 0 5px !important;
+}
+
+#smarter-panel-content {
+  flex: 1 !important;
+  border-radius: 0 0 8px 8px !important;
+  overflow: hidden !important;
+  padding: 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  isolation: isolate !important;
+  contain: content !important;
+  background: white !important;
+}
+
+#smarter-panel-resize {
+  position: absolute !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+  cursor: se-resize !important;
+  background: linear-gradient(135deg, transparent 50%, #ddd 50%) !important;
+}
+
+/* Form styles */
+.form-group {
+  margin-bottom: 15px !important;
+}
+
+.form-group label {
+  display: block !important;
+  margin-bottom: 5px !important;
+}
+
+.form-group input {
+  width: 100% !important;
+  padding: 8px !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+}
+
+button {
+  background: #007bff !important;
+  color: white !important;
+  border: none !important;
+  padding: 10px 20px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+}
+
+button:hover {
+  background: #0056b3 !important;
+}
+
+/* Analysis result styles */
+#smarter-analysis-result {
+  width: 100% !important;
+  max-width: 300px !important;
+  margin: 0 auto !important;
+}
+
+#smarter-analysis-result .success {
+  background: #f8f9fa !important;
+  padding: 15px !important;
+  border-radius: 4px !important;
+  text-align: left !important;
+}
+
+#smarter-analysis-result .error {
+  color: red !important;
+  text-align: center !important;
+} 
