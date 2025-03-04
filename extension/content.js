@@ -92,11 +92,15 @@ function createPanel() {
     try {
       // Fetch the login form HTML
       const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
+        method: 'GET',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Origin': chrome.runtime.getURL(''),
+          'Access-Control-Allow-Origin': '*'
         },
-        credentials: 'include'
+        credentials: 'include',
+        mode: 'cors'
       });
       
       if (!response.ok) {
@@ -217,7 +221,9 @@ function createPanel() {
             body: formData,
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'Origin': chrome.runtime.getURL(''),
+              'Access-Control-Allow-Origin': '*'
             },
             credentials: 'include',
             mode: 'cors'

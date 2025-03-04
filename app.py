@@ -48,7 +48,7 @@ CORS(app, resources={
     r"/*": {
         "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Access-Control-Allow-Origin"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "X-CSRFToken"],
         "max_age": 600
@@ -59,6 +59,8 @@ CORS(app, resources={
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_DOMAIN'] = '.herokuapp.com'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_PATH'] = '/'
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')

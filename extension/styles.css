@@ -1,4 +1,4 @@
-/* Smarter Extension Styles */
+/* Smarter Extension Styles - Scoped to extension only */
 #smarter-panel {
   position: fixed !important;
   top: 20px !important;
@@ -18,6 +18,11 @@
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
+  all: initial !important; /* Reset all inherited styles */
+}
+
+#smarter-panel * {
+  all: revert !important; /* Restore default styles for panel children */
 }
 
 #smarter-panel-header {
@@ -72,24 +77,24 @@
   background: linear-gradient(135deg, transparent 50%, #ddd 50%) !important;
 }
 
-/* Form styles */
-.form-group {
+/* Form styles - scoped to panel */
+#smarter-panel .form-group {
   margin-bottom: 15px !important;
 }
 
-.form-group label {
+#smarter-panel .form-group label {
   display: block !important;
   margin-bottom: 5px !important;
 }
 
-.form-group input {
+#smarter-panel .form-group input {
   width: 100% !important;
   padding: 8px !important;
   border: 1px solid #ddd !important;
   border-radius: 4px !important;
 }
 
-button {
+#smarter-panel button {
   background: #007bff !important;
   color: white !important;
   border: none !important;
@@ -99,25 +104,25 @@ button {
   font-size: 14px !important;
 }
 
-button:hover {
+#smarter-panel button:hover {
   background: #0056b3 !important;
 }
 
-/* Analysis result styles */
-#smarter-analysis-result {
+/* Analysis result styles - scoped to panel */
+#smarter-panel #smarter-analysis-result {
   width: 100% !important;
   max-width: 300px !important;
   margin: 0 auto !important;
 }
 
-#smarter-analysis-result .success {
+#smarter-panel #smarter-analysis-result .success {
   background: #f8f9fa !important;
   padding: 15px !important;
   border-radius: 4px !important;
   text-align: left !important;
 }
 
-#smarter-analysis-result .error {
+#smarter-panel #smarter-analysis-result .error {
   color: red !important;
   text-align: center !important;
 } 
