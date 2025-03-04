@@ -1,19 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "Smarter",
+  "name": "Smarter Assistant",
   "version": "1.0",
-  "description": "Add Smarter to any webpage",
-  "permissions": ["activeTab", "scripting"],
+  "description": "AI-powered assistant for web pages",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://smarter-865bc5a924ea.herokuapp.com/*"
+  ],
   "action": {
-    "default_title": "Smarter"
-  },
-  "background": {
-    "service_worker": "background.js"
+    "default_popup": "popup.html"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["styles.css"]
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 } 

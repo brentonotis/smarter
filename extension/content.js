@@ -230,13 +230,36 @@ function createPanel() {
           const data = await response.json();
           
           if (data.status === 'success' && data.user && data.user.email) {
-            // Update the panel content to show logged-in state
-            content.innerHTML = `
-              <div style="text-align: center;">
-                <h3 style="margin-bottom: 15px;">Welcome to Smarter!</h3>
-                <p style="color: #333;">You are now logged in as ${data.user.email}</p>
-              </div>
-            `;
+            // Store the session data
+            chrome.storage.local.set({
+              'smarter_session': {
+                user: data.user,
+                timestamp: Date.now()
+              }
+            }, () => {
+              // Update the panel content to show logged-in state
+              content.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                  <h3 style="margin-bottom: 15px;">Welcome to Smarter!</h3>
+                  <p style="color: #333; margin-bottom: 20px;">You are now logged in as ${data.user.email}</p>
+                  <button id="smarter-start-button" style="
+                    background: #007bff;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                  ">Start Using Smarter</button>
+                </div>
+              `;
+
+              // Add click handler for the start button
+              document.getElementById('smarter-start-button').addEventListener('click', () => {
+                // Initialize the main functionality
+                initializeSmarterFunctionality();
+              });
+            });
           } else {
             // Show error message from server
             const errorDiv = document.createElement('div');
@@ -339,4 +362,70 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       createPanel();
     }
   }
-}); 
+});
+
+// Add this function to initialize the main functionality
+function initializeSmarterFunctionality() {
+  // Get the current tab's URL
+  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    const currentUrl = tabs[0].url;
+    
+    // Update the panel content with the main interface
+    const content = document.getElementById('smarter-panel-content');
+    content.innerHTML = `
+      <div style="text-align: center; padding: 20px;">
+        <h3 style="margin-bottom: 15px;">Smarter Assistant</h3>
+        <p style="color: #333; margin-bottom: 20px;">Analyzing: ${currentUrl}</p>
+        <div id="smarter-analysis-result" style="margin-top: 20px;"></div>
+      </div>
+    `;
+
+    // Start the analysis
+    analyzeCurrentPage(currentUrl);
+  });
+}
+
+// Add this function to analyze the current page
+async function analyzeCurrentPage(url) {
+  try {
+    const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'include',
+      body: JSON.stringify({ url })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const resultDiv = document.getElementById('smarter-analysis-result');
+    
+    if (data.status === 'success') {
+      resultDiv.innerHTML = `
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; text-align: left;">
+          <h4 style="margin-bottom: 10px;">Analysis Results:</h4>
+          <p>${data.message}</p>
+        </div>
+      `;
+    } else {
+      resultDiv.innerHTML = `
+        <div style="color: red; text-align: center;">
+          <p>${data.message || 'Analysis failed. Please try again.'}</p>
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error('Analysis error:', error);
+    const resultDiv = document.getElementById('smarter-analysis-result');
+    resultDiv.innerHTML = `
+      <div style="color: red; text-align: center;">
+        <p>An error occurred during analysis. Please try again.</p>
+      </div>
+    `;
+  }
+} 

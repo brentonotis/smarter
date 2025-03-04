@@ -43,15 +43,22 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
 app.config['NEWS_API_DAILY_LIMIT'] = 95
 
-# Initialize CORS
+# Update CORS configuration
 CORS(app, resources={
     r"/*": {
-        "origins": "*",
+        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "X-Requested-With", "Authorization"],
-        "supports_credentials": True
+        "supports_credentials": True,
+        "expose_headers": ["Content-Type", "X-CSRFToken"],
+        "max_age": 600
     }
 })
+
+# Add session configuration
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_DOMAIN'] = '.herokuapp.com'
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
@@ -400,7 +407,6 @@ def login():
                     
         except Exception as e:
             logger.error(f"Login error: {e}")
-            # Only show one error message
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({
                     'status': 'error',
@@ -819,6 +825,32 @@ def schedule_redis_cleanup():
 @app.route('/bookmarklet')
 def bookmarklet():
     return render_template('bookmarklet.html')
+
+@app.route('/api/analyze', methods=['POST'])
+@login_required
+def analyze_page():
+    try:
+        data = request.json
+        if not data or 'url' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No URL provided'
+            }), 400
+
+        url = data['url']
+        
+        # Here you would implement your page analysis logic
+        # For now, we'll return a mock response
+        return jsonify({
+            'status': 'success',
+            'message': f'Successfully analyzed {url}. This is a placeholder response.'
+        })
+    except Exception as e:
+        logger.error(f"Analysis error: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred during analysis.'
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
