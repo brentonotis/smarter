@@ -410,10 +410,10 @@ def login():
             }), 500
     
     # GET request
-    if request.headers.get('Accept') == 'application/json':
+    if request.headers.get('Accept') == 'application/json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
             'status': 'success',
-            'html': render_template('extension_login.html')
+            'html': render_template('extension_login.html', form=form)
         })
     return render_template('login.html', form=form)
 
