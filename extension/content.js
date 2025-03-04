@@ -215,7 +215,7 @@ function createPanel() {
         
         const formData = new FormData(newForm);
         try {
-          const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
+          const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
             method: 'POST',
             body: formData,
             headers: {

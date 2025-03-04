@@ -872,6 +872,58 @@ def analyze_page():
             'message': 'An error occurred during analysis.'
         }), 500
 
+@app.route('/api/extension/login', methods=['POST'])
+def extension_login():
+    try:
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # Check if login is allowed
+        if not is_login_allowed(email):
+            remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+            return jsonify({
+                'status': 'error',
+                'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
+            }), 429
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            user_data = cursor.fetchone()
+            cursor.close()
+            
+            if user_data and check_password_hash(user_data['password_hash'], password):
+                user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                login_user(user, remember=True)  # Enable remember me
+                session.permanent = True
+                
+                # Clear login attempts on successful login
+                login_attempts[email] = []
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Login successful',
+                    'user': {
+                        'email': user.email,
+                        'id': user.id
+                    }
+                })
+            
+            # Record failed attempt
+            login_attempts[email].append(time.time())
+            
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid email or password'
+            }), 401
+            
+    except Exception as e:
+        logger.error(f"Extension login error: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred during login. Please try again.'
+        }), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
