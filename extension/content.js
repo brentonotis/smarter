@@ -142,7 +142,7 @@ function createPanel() {
       // Add CSRF token
       const csrfInput = document.createElement('input');
       csrfInput.type = 'hidden';
-      csrfInput.id = 'smarter-csrf-token';
+      csrfInput.id = 'csrf_token';
       csrfInput.name = 'csrf_token';
       csrfInput.value = data.csrf_token;
       newForm.appendChild(csrfInput);

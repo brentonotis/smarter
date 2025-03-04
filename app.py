@@ -942,10 +942,11 @@ def extension_login_form():
         form = FlaskForm()
         csrf_token = form.csrf_token.current_token
         
-        # Return the login form HTML
+        # Return the login form HTML with the CSRF token
         return jsonify({
             'status': 'success',
-            'html': render_template('extension_login.html', csrf_token=csrf_token)
+            'html': render_template('extension_login.html', form=form),
+            'csrf_token': csrf_token
         })
     except Exception as e:
         logger.error(f"Extension login form error: {e}")
