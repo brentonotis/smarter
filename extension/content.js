@@ -95,10 +95,12 @@ function createPanel() {
         method: 'GET',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         },
         credentials: 'include',
-        mode: 'cors'
+        mode: 'cors',
+        referrerPolicy: 'no-referrer'
       });
       
       if (!response.ok) {
@@ -222,7 +224,8 @@ function createPanel() {
               'Accept': 'application/json'
             },
             credentials: 'include',
-            mode: 'cors'
+            mode: 'cors',
+            referrerPolicy: 'no-referrer'
           });
           
           if (!response.ok) {

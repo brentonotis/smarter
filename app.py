@@ -46,9 +46,9 @@ app.config['NEWS_API_DAILY_LIMIT'] = 95
 # Update CORS configuration
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*"],
+        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "X-CSRFToken"],
         "max_age": 600
@@ -773,6 +773,12 @@ csrf = CSRFProtect(app)
 
 @app.after_request
 def add_security_headers(response):
+    # Get the origin from the request
+    origin = request.headers.get('Origin')
+    if origin in ["https://smarter-865bc5a924ea.herokuapp.com", "https://www.linkedin.com"] or origin.startswith("chrome-extension://"):
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+    
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'ALLOWALL'
@@ -787,7 +793,8 @@ def add_security_headers(response):
         "frame-src *; "
         "frame-ancestors *; "
         "form-action 'self' *; "
-        "base-uri 'self' *"
+        "base-uri 'self' *; "
+        "trusted-types 'allow-duplicates' default jSecure highcharts dompurify"
     )
     return response
 
