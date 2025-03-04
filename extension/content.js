@@ -95,9 +95,7 @@ function createPanel() {
         method: 'GET',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json',
-          'Origin': chrome.runtime.getURL(''),
-          'Access-Control-Allow-Origin': '*'
+          'Accept': 'application/json'
         },
         credentials: 'include',
         mode: 'cors'
@@ -221,9 +219,7 @@ function createPanel() {
             body: formData,
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
-              'Accept': 'application/json',
-              'Origin': chrome.runtime.getURL(''),
-              'Access-Control-Allow-Origin': '*'
+              'Accept': 'application/json'
             },
             credentials: 'include',
             mode: 'cors'

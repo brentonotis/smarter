@@ -48,7 +48,7 @@ CORS(app, resources={
     r"/*": {
         "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Access-Control-Allow-Origin"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "X-CSRFToken"],
         "max_age": 600
