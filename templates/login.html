@@ -16,15 +16,17 @@
                             {% endfor %}
                         {% endif %}
                     {% endwith %}
-                    <form method="POST">
+                    <form method="POST" id="loginForm">
                         {{ form.csrf_token }}
                         <div class="mb-3">
                             <label for="email" class="form-label">Email address</label>
                             <input type="email" class="form-control" id="email" name="email" required>
+                            <div class="invalid-feedback" id="emailError"></div>
                         </div>
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
                             <input type="password" class="form-control" id="password" name="password" required>
+                            <div class="invalid-feedback" id="passwordError"></div>
                             <div class="text-end mt-1">
                                 <a href="{{ url_for('reset_password_request') }}" class="text-decoration-none">Forgot Password?</a>
                             </div>
@@ -41,4 +43,40 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    fetch('{{ url_for("login") }}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            window.location.href = '{{ url_for("index") }}';
+        } else {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger mt-3';
+            errorDiv.textContent = data.message;
+            document.querySelector('.card-body').insertBefore(errorDiv, document.querySelector('.text-center'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger mt-3';
+        errorDiv.textContent = 'An error occurred during login. Please try again.';
+        document.querySelector('.card-body').insertBefore(errorDiv, document.querySelector('.text-center'));
+    });
+});
+</script>
 {% endblock %} 

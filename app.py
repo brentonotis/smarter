@@ -806,11 +806,12 @@ def add_security_headers(response):
     )
     return response
 
-# Serve static files in production
+# Configure static files
+app.static_folder = 'static'
+app.static_url_path = '/static'
+
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    if app.static_folder is None:
-        app.static_folder = 'static'
     try:
         return send_from_directory(app.static_folder, filename)
     except Exception as e:
@@ -819,8 +820,26 @@ def serve_static(filename):
 
 @app.route('/favicon.ico')
 def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                             'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    try:
+        return send_from_directory(os.path.join(app.root_path, 'static'),
+                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    except Exception as e:
+        logger.error(f"Favicon error: {e}")
+        return '', 404
+
+# Add error handler for 404
+@app.errorhandler(404)
+def not_found_error(error):
+    if request.is_json:
+        return jsonify({'error': 'Not found'}), 404
+    return render_template('404.html'), 404
+
+# Add error handler for 500
+@app.errorhandler(500)
+def internal_error(error):
+    if request.is_json:
+        return jsonify({'error': 'Internal server error'}), 500
+    return render_template('500.html'), 500
 
 # Add cache cleanup for Redis
 def cleanup_redis_cache():
