@@ -342,16 +342,9 @@ def is_login_allowed(email):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # If user is already logged in, return success
+    # If user is already logged in, redirect to index
     if current_user.is_authenticated:
-        return jsonify({
-            'status': 'success',
-            'message': 'Already logged in',
-            'user': {
-                'email': current_user.email,
-                'id': current_user.id
-            }
-        })
+        return redirect(url_for('index'))
     
     # Clear any existing session data
     session.clear()
