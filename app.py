@@ -485,10 +485,21 @@ def register():
 @login_required
 def logout():
     try:
+        # Clear all session data
+        session.clear()
+        
+        # Logout the user
         logout_user()
-        session.clear()  # Clear the session data
-        flash('You have been logged out successfully.', 'info')  # Add a success message
-        return redirect(url_for('login'))
+        
+        # Clear any cookies
+        response = redirect(url_for('login'))
+        response.delete_cookie('smarter_session')
+        response.delete_cookie('session')
+        
+        # Add a success message
+        flash('You have been logged out successfully.', 'info')
+        
+        return response
     except Exception as e:
         logger.error(f"Logout error: {e}")
         return redirect(url_for('login'))
@@ -813,19 +824,29 @@ app.static_url_path = '/static'
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     try:
-        return send_from_directory(app.static_folder, filename)
+        # Add cache control headers
+        response = send_from_directory(app.static_folder, filename)
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+        return response
     except Exception as e:
         logger.error(f"Static file error: {e}")
-        return '', 404
+        # Return a proper 404 response instead of empty string
+        return jsonify({'error': 'File not found'}), 404
 
 @app.route('/favicon.ico')
 def favicon():
     try:
-        return send_from_directory(os.path.join(app.root_path, 'static'),
-                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+        response = send_from_directory(
+            os.path.join(app.root_path, 'static'),
+            'favicon.ico',
+            mimetype='image/vnd.microsoft.icon'
+        )
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+        return response
     except Exception as e:
         logger.error(f"Favicon error: {e}")
-        return '', 404
+        # Return a proper 404 response
+        return jsonify({'error': 'Favicon not found'}), 404
 
 # Add error handler for 404
 @app.errorhandler(404)
