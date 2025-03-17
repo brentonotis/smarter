@@ -778,7 +778,10 @@ csrf = CSRFProtect(app)
 def add_security_headers(response):
     # Get the origin from the request
     origin = request.headers.get('Origin')
-    if origin in ["https://smarter-865bc5a924ea.herokuapp.com", "https://www.linkedin.com"] or origin.startswith("chrome-extension://"):
+    
+    # Only set CORS headers if there's an origin
+    if origin and (origin in ["https://smarter-865bc5a924ea.herokuapp.com", "https://www.linkedin.com"] or 
+                  origin.startswith("chrome-extension://")):
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept'
