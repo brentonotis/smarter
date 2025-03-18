@@ -257,6 +257,7 @@ function createPanel() {
           }
           
           if (!response.ok) {
+            console.error('Login error response:', data);
             throw new Error(data?.message || `HTTP error! status: ${response.status}`);
           }
           
