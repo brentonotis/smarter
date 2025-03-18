@@ -388,11 +388,15 @@ def handle_error(error):
         return error
     
     logger.error(f'Unhandled exception: {str(error)}', exc_info=True)
-    if request.is_json:
+    
+    # Check if this is an API request
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept') == 'application/json':
         return jsonify({
-            'error': 'An internal error occurred',
-            'message': str(error) if app.debug else 'Please try again later'
+            'status': 'error',
+            'message': str(error) if app.debug else 'An error occurred. Please try again.'
         }), 500
+    
+    # For non-API requests, show the error page
     flash('An unexpected error occurred. Please try again later.', 'error')
     return redirect(url_for('index'))
 
