@@ -247,7 +247,8 @@ function createPanel() {
           });
           
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
           }
           
           const data = await response.json();
@@ -289,7 +290,7 @@ function createPanel() {
           }
         } catch (error) {
           console.error('Login error:', error);
-          errorDiv.textContent = 'An error occurred during login. Please try again.';
+          errorDiv.textContent = error.message || 'An error occurred during login. Please try again.';
           errorDiv.style.display = 'block';
         } finally {
           loadingDiv.style.display = 'none';

@@ -60,7 +60,7 @@
 <body>
     <div class="form-container">
         <form id="smarter-login-form" method="POST" role="form" aria-label="Login Form">
-            {{ form.csrf_token }}
+            <input type="hidden" name="csrf_token" value="{{ form.csrf_token.current_token }}">
             <div class="form-group">
                 <label for="email">Email:</label>
                 <input type="email" id="email" name="email" required autocomplete="username email">
