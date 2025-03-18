@@ -593,6 +593,8 @@ def analyze_page():
 def extension_login():
     try:
         logger.info("Extension login attempt received")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        logger.info(f"Request form data: {dict(request.form)}")
         
         # Get CSRF token from headers
         csrf_token = request.headers.get('X-CSRFToken')
@@ -633,38 +635,45 @@ def extension_login():
                 'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
             }), 429
         
-        with get_db_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            user_data = cursor.fetchone()
-            cursor.close()
-            
-            if user_data and check_password_hash(user_data['password_hash'], password):
-                user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                login_user(user, remember=True)  # Enable remember me
-                session.permanent = True
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user_data = cursor.fetchone()
+                cursor.close()
                 
-                # Clear login attempts on successful login
-                login_attempts[email] = []
+                if user_data and check_password_hash(user_data['password_hash'], password):
+                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                    login_user(user, remember=True)  # Enable remember me
+                    session.permanent = True
+                    
+                    # Clear login attempts on successful login
+                    login_attempts[email] = []
+                    
+                    logger.info(f"Successful login for user: {email}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Login successful',
+                        'user': {
+                            'email': user.email,
+                            'id': user.id
+                        }
+                    })
                 
-                logger.info(f"Successful login for user: {email}")
+                # Record failed attempt
+                login_attempts[email].append(time.time())
+                logger.warning(f"Failed login attempt for email: {email}")
+                
                 return jsonify({
-                    'status': 'success',
-                    'message': 'Login successful',
-                    'user': {
-                        'email': user.email,
-                        'id': user.id
-                    }
-                })
-            
-            # Record failed attempt
-            login_attempts[email].append(time.time())
-            logger.warning(f"Failed login attempt for email: {email}")
-            
+                    'status': 'error',
+                    'message': 'Invalid email or password'
+                }), 401
+        except Exception as db_error:
+            logger.error(f"Database error during login: {str(db_error)}", exc_info=True)
             return jsonify({
                 'status': 'error',
-                'message': 'Invalid email or password'
-            }), 401
+                'message': 'Database error during login'
+            }), 500
             
     except Exception as e:
         logger.error(f"Extension login error: {str(e)}", exc_info=True)
