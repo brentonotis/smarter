@@ -68,15 +68,24 @@ redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 parsed_url = urlparse(redis_url)
 use_ssl = parsed_url.scheme == 'rediss'
 
-redis_pool = redis.ConnectionPool.from_url(
-    redis_url,
+# Parse Redis URL components
+redis_host = parsed_url.hostname or 'localhost'
+redis_port = parsed_url.port or 6379
+redis_password = parsed_url.password
+redis_db = int(parsed_url.path.lstrip('/')) if parsed_url.path else 0
+
+# Create connection pool
+redis_pool = redis.ConnectionPool(
+    host=redis_host,
+    port=redis_port,
+    password=redis_password,
+    db=redis_db,
     decode_responses=True,
     socket_timeout=5,
     socket_connect_timeout=5,
     max_connections=5,
     retry_on_timeout=True,
     health_check_interval=30,
-    ssl_cert_reqs=None if use_ssl else None,
     connection_class=redis.SSLConnection if use_ssl else redis.Connection
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
