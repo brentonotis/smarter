@@ -943,7 +943,12 @@ def generate_snippets():
                 if news_articles:
                     news_context = "\nRecent News:\n"
                     for article in news_articles:
-                        news_context += f"- {article['title']} ({article['publishedAt']})\n"
+                        news_context += f"Title: {article['title']}\n"
+                        if article.get('description'):
+                            news_context += f"Description: {article['description']}\n"
+                        if article.get('content'):
+                            news_context += f"Content: {article['content']}\n"
+                        news_context += f"Source: {article.get('source', {}).get('name', 'Unknown')} ({article['publishedAt']})\n\n"
                 
                 # Generate snippet using OpenAI
                 prompt = f"""Generate a personalized outreach message for {target['name']} ({target['type']}) from {user_company['name']}.
@@ -958,21 +963,28 @@ def generate_snippets():
                 Type: {target['type']}
                 {news_context}
                 
-                Generate a professional, personalized outreach message that:
-                1. References recent news about the target company (if available)
-                2. Highlights how your company's solution aligns with their current needs
-                3. Demonstrates understanding of their industry and challenges
-                4. Provides specific value proposition and potential benefits
+                Generate a concise, data-driven outreach message that:
+                1. Opens with a specific metric, statistic, or data point from recent news (include the source)
+                2. Makes a clear connection between their current situation and your solution
+                3. Includes a specific value proposition with numbers/percentages
+                4. Ends with a clear next step
                 
-                Make the message conversational and engaging while maintaining professionalism."""
+                Requirements:
+                - Must include at least one specific metric or statistic from the news articles
+                - Must cite the source of any metrics or news mentioned
+                - Keep the message under 3-4 sentences
+                - Be direct and avoid corporate jargon
+                - Focus on concrete benefits rather than features
+                - If you have recent news about their company, lead with that specific data point
+                - Format: Start with the metric/statistic, then connect to your solution, then value proposition, then call to action"""
                 
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "You are a professional sales outreach specialist who creates personalized, engaging messages based on company information and recent news."},
+                        {"role": "system", "content": "You are a data-driven sales professional who creates concise, impactful messages. You focus on specific metrics, recent news, and concrete value propositions. Your messages are short, direct, and designed for busy executives. You always cite your sources and include specific numbers or statistics."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=500,
+                    max_tokens=300,  # Reduced from 500 to encourage brevity
                     temperature=0.7
                 )
                 
