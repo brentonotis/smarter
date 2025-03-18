@@ -68,11 +68,12 @@ redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 redis_pool = redis.ConnectionPool.from_url(
     redis_url,
     decode_responses=True,
-    socket_timeout=2,
-    socket_connect_timeout=2,
-    max_connections=10,
+    socket_timeout=5,
+    socket_connect_timeout=5,
+    max_connections=5,
     retry_on_timeout=True,
-    health_check_interval=30
+    health_check_interval=30,
+    ssl_cert_reqs=None  # Disable SSL certificate verification
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
 
