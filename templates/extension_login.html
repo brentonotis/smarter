@@ -40,6 +40,11 @@
             text-align: center;
             display: none;
         }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -55,6 +60,7 @@
             <input type="password" id="password" name="password" required>
         </div>
         <div id="errorMessage" class="error-message"></div>
+        <div id="loadingMessage" class="loading">Logging in...</div>
         <button type="submit">Login</button>
     </form>
 
@@ -63,7 +69,12 @@
             e.preventDefault();
             
             const errorDiv = document.getElementById('errorMessage');
+            const loadingDiv = document.getElementById('loadingMessage');
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            
             errorDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            submitButton.disabled = true;
             
             const formData = new FormData(e.target);
             try {
@@ -98,6 +109,9 @@
                 console.error('Login error:', error);
                 errorDiv.textContent = 'An error occurred during login. Please try again.';
                 errorDiv.style.display = 'block';
+            } finally {
+                loadingDiv.style.display = 'none';
+                submitButton.disabled = false;
             }
         });
     </script>

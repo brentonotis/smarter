@@ -95,11 +95,11 @@ function createPanel() {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'include',
-        mode: 'cors',
-        referrerPolicy: 'no-referrer'
+        mode: 'cors'
       });
       
       if (!response.ok) {
@@ -211,16 +211,16 @@ function createPanel() {
         
         const formData = new FormData(newForm);
         try {
-          const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/login', {
+          const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
             method: 'POST',
             body: formData,
             headers: {
               'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest'
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRFToken': document.getElementById('csrf_token').value
             },
             credentials: 'include',
-            mode: 'cors',
-            referrerPolicy: 'no-referrer'
+            mode: 'cors'
           });
           
           if (!response.ok) {

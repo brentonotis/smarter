@@ -119,7 +119,7 @@ CORS(app, resources={
     r"/*": {
         "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "X-CSRFToken"],
         "max_age": 600
@@ -406,8 +406,9 @@ def add_security_headers(response):
                   origin.startswith("chrome-extension://")):
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
     
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Content-Type-Options'] = 'nosniff'
