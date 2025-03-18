@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="api-status-bar">
+
+<div class="api-status-bar">
         <div class="card">
             <div class="card-body py-2">
                 <div class="d-flex justify-content-between align-items-center">
@@ -17,6 +18,32 @@
     
     <div class="container my-5">
         <h1 class="mb-4">Personalized Outreach Generator</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Your Company Information</h5>
+                <p class="card-text">Enter information about your company to create more relevant outreach snippets.</p>
+                
+                <form id="companyForm">
+                    <div class="mb-3">
+                        <label for="companyName" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="companyName" placeholder="Enter your company name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="companyDescription" class="form-label">Company Description</label>
+                        <textarea class="form-control" id="companyDescription" rows="3" placeholder="Describe what your company does, your value proposition, and key differentiators"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="targetIndustries" class="form-label">Target Industries</label>
+                        <input type="text" class="form-control" id="targetIndustries" placeholder="e.g., Technology, Healthcare, Finance">
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" id="saveCompany">Save Company Info</button>
+                </form>
+            </div>
+        </div>
         
         <div class="card mb-4">
             <div class="card-body">
@@ -67,6 +94,11 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const companyForm = document.getElementById('companyForm');
+            const companyName = document.getElementById('companyName');
+            const companyDescription = document.getElementById('companyDescription');
+            const targetIndustries = document.getElementById('targetIndustries');
+            const saveCompanyBtn = document.getElementById('saveCompany');
             const targetForm = document.getElementById('targetForm');
             const targetName = document.getElementById('targetName');
             const targetList = document.getElementById('targetList');
@@ -75,6 +107,59 @@
             const resultsContainer = document.getElementById('resultsContainer');
             
             let targets = [];
+            let userCompany = null;
+
+            // Load saved company info if it exists
+            fetch('/api/company-info', {
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.company) {
+                    companyName.value = data.company.name || '';
+                    companyDescription.value = data.company.description || '';
+                    targetIndustries.value = data.company.target_industries || '';
+                    userCompany = data.company;
+                }
+            })
+            .catch(error => console.error('Error loading company info:', error));
+            
+            saveCompanyBtn.addEventListener('click', function() {
+                const companyData = {
+                    name: companyName.value.trim(),
+                    description: companyDescription.value.trim(),
+                    target_industries: targetIndustries.value.trim()
+                };
+                
+                if (!companyData.name || !companyData.description) {
+                    alert('Please enter both company name and description.');
+                    return;
+                }
+                
+                fetch('/api/company-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify(companyData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Company information saved successfully!');
+                        userCompany = companyData;
+                    } else {
+                        alert(data.message || 'Error saving company information.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error saving company information.');
+                });
+            });
             
             function updateTargetList() {
                 if (targets.length === 0) {
@@ -123,6 +208,11 @@
                     return;
                 }
                 
+                if (!userCompany) {
+                    alert('Please enter your company information first.');
+                    return;
+                }
+                
                 // Show loading state
                 generateBtn.classList.add('loading');
                 generateBtn.disabled = true;
@@ -134,7 +224,10 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                     },
-                    body: JSON.stringify({ targets })
+                    body: JSON.stringify({ 
+                        targets,
+                        userCompany 
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {

@@ -43,6 +43,73 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
 app.config['NEWS_API_DAILY_LIMIT'] = 95
 
+def init_db():
+    """Initialize database tables"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Create tables if they don't exist
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_companies (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            name VARCHAR(255) NOT NULL,
+            description TEXT NOT NULL,
+            target_industries VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id)
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS targets (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            name VARCHAR(255) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS snippets (
+            id SERIAL PRIMARY KEY,
+            target_id INTEGER REFERENCES targets(id),
+            content TEXT NOT NULL,
+            source_data JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS api_usage (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id),
+            date DATE NOT NULL,
+            openai_tokens_used INTEGER DEFAULT 0,
+            news_api_calls INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, date)
+        )
+    ''')
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Initialize database tables when the app starts
+init_db()
+
 # Update CORS configuration
 CORS(app, resources={
     r"/*": {
@@ -298,7 +365,7 @@ def fetch_company_news(company_name, user_id):
     ]
 
 # Generate personalized snippet using OpenAI
-def generate_snippet(name, entity_type, context_data, user_id):
+def generate_snippet(name, entity_type, context_data, user_id, user_company):
     # Check limits first
     limits = check_api_limits(user_id)
     if limits["openai_limit_reached"]:
@@ -312,21 +379,28 @@ def generate_snippet(name, entity_type, context_data, user_id):
         prompt = f"""
         Generate a personalized cold outreach snippet for {entity_type} named {name}.
         
+        About our company ({user_company['name']}):
+        {user_company['description']}
+        Target industries: {user_company['target_industries']}
+        
         Recent information about {name}:
         {json.dumps(context_data, indent=2)}
         
-        The snippet should be 2-3 sentences, mention specific information about {name},
-        and suggest how our product could help them based on their recent activities.
-        Be conversational and avoid generic statements.
+        Generate a personalized outreach message that:
+        1. Shows understanding of {name}'s recent activities or challenges
+        2. Explains how our company's solution could specifically help them
+        3. References any industry-specific benefits based on our target industries
+        4. Is conversational and authentic (2-3 sentences)
+        5. Avoids generic statements
         """
         
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an assistant that generates personalized sales outreach messages."},
+                {"role": "system", "content": "You are an expert at creating personalized sales outreach messages that are authentic and relevant to the recipient's needs."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=150,
+            max_tokens=200,
             temperature=0.7
         )
         
@@ -602,8 +676,8 @@ def generate():
     ip_request_counts[client_ip] += 1
     
     data = request.json
-    if not data or 'targets' not in data:
-        return jsonify({"error": "No targets provided"}), 400
+    if not data or 'targets' not in data or 'userCompany' not in data:
+        return jsonify({"error": "Missing required data"}), 400
     
     results = []
     with get_db_connection() as conn:
@@ -630,8 +704,8 @@ def generate():
                 else:
                     context_data = [{"description": f"{name} is a professional in the industry."}]
                 
-                # Generate the snippet
-                snippet = generate_snippet(name, entity_type, context_data, current_user.id)
+                # Generate the snippet with user company context
+                snippet = generate_snippet(name, entity_type, context_data, current_user.id, data['userCompany'])
                 
                 # Save the snippet
                 cursor.execute(
@@ -1012,6 +1086,70 @@ def extension_login_form():
             'status': 'error',
             'message': 'An error occurred while loading the login form.'
         }), 500
+
+@app.route('/api/company-info', methods=['GET', 'POST'])
+@login_required
+def company_info():
+    if request.method == 'GET':
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(
+                "SELECT name, description, target_industries FROM user_companies WHERE user_id = %s",
+                (current_user.id,)
+            )
+            company = cursor.fetchone()
+            cursor.close()
+            
+            return jsonify({
+                'status': 'success',
+                'company': company
+            })
+    
+    else:  # POST
+        data = request.json
+        if not data or not data.get('name') or not data.get('description'):
+            return jsonify({
+                'status': 'error',
+                'message': 'Company name and description are required'
+            }), 400
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO user_companies (user_id, name, description, target_industries)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        name = EXCLUDED.name,
+                        description = EXCLUDED.description,
+                        target_industries = EXCLUDED.target_industries,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id
+                ''', (
+                    current_user.id,
+                    data['name'],
+                    data['description'],
+                    data.get('target_industries', '')
+                ))
+                
+                company_id = cursor.fetchone()[0]
+                conn.commit()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Company information saved successfully',
+                    'id': company_id
+                })
+            
+            except Exception as e:
+                print(f"Error saving company info: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Error saving company information'
+                }), 500
+            finally:
+                cursor.close()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
