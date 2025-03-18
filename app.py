@@ -65,6 +65,9 @@ app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
 
 # Initialize Redis and caching
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+parsed_url = urlparse(redis_url)
+use_ssl = parsed_url.scheme == 'rediss'
+
 redis_pool = redis.ConnectionPool.from_url(
     redis_url,
     decode_responses=True,
@@ -72,7 +75,9 @@ redis_pool = redis.ConnectionPool.from_url(
     socket_connect_timeout=5,
     max_connections=5,
     retry_on_timeout=True,
-    health_check_interval=30
+    health_check_interval=30,
+    ssl_cert_reqs=None if use_ssl else None,
+    connection_class=redis.SSLConnection if use_ssl else redis.Connection
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
 
