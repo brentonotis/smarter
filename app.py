@@ -1175,6 +1175,14 @@ def company_info():
     
     else:  # POST
         try:
+            # Validate content type
+            if not request.is_json:
+                logger.warning("Invalid content type in company info update")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid content type. Expected application/json'
+                }), 400
+
             data = request.json
             logger.info(f"Received company info update request: {data}")
             
