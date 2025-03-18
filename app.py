@@ -501,19 +501,38 @@ def fetch_company_news(company_name):
         
         # Make request to News API
         params = {
-            'q': company_name,
+            'q': f'"{company_name}"',  # Add quotes for exact phrase matching
             'language': 'en',
             'sortBy': 'publishedAt',
             'pageSize': 5,  # Get 5 most recent articles
-            'apiKey': NEWS_API_KEY
+            'apiKey': NEWS_API_KEY,
+            'searchIn': 'title,description'  # Search in both title and description
         }
+        
+        logger.info(f"Making News API request for company: {company_name}")
+        logger.info(f"Request params: {params}")
         
         response = requests.get(f"{NEWS_API_BASE_URL}/everything", params=params)
         response.raise_for_status()
         
-        articles = response.json().get('articles', [])
+        response_data = response.json()
+        logger.info(f"News API response status: {response_data.get('status')}")
+        logger.info(f"Total results: {response_data.get('totalResults', 0)}")
+        
+        articles = response_data.get('articles', [])
+        logger.info(f"Found {len(articles)} articles")
+        
+        # Log article titles for debugging
+        for article in articles:
+            logger.info(f"Article: {article.get('title')}")
+        
         return articles
         
+    except requests.exceptions.RequestException as e:
+        logger.error(f"News API request error for {company_name}: {str(e)}")
+        if hasattr(e.response, 'text'):
+            logger.error(f"Response text: {e.response.text}")
+        return []
     except Exception as e:
         logger.error(f"Error fetching news for {company_name}: {str(e)}")
         return []
