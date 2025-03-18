@@ -976,14 +976,14 @@ def generate_snippets():
                 - Focus on concrete benefits rather than features
                 - If you have recent news about their company, lead with that specific data point
                 - Format: Start with the metric/statistic, then connect to your solution, then value proposition, then call to action
-                - After the message, add a new line with "Source: [News Source Name]" for any metrics cited
+                - After the message, add a new line with "Source: [News Source Name] ([Date]) - [Article Link]" for any metrics cited
                 - Value propositions should be realistic and based on your company's actual capabilities
                 - Avoid making arbitrary claims about specific dollar amounts unless directly supported by data"""
                 
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "You are a data-driven sales professional who creates concise, impactful messages. You focus on specific metrics, recent news, and concrete value propositions. Your messages are short, direct, and designed for busy executives. You always cite sources separately and make realistic claims based on actual capabilities."},
+                        {"role": "system", "content": "You are a data-driven sales professional who creates concise, impactful messages. You focus on specific metrics, recent news, and concrete value propositions. Your messages are short, direct, and designed for busy executives. You always cite sources with dates and links, and make realistic claims based on actual capabilities."},
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=300,  # Reduced from 500 to encourage brevity
@@ -991,6 +991,14 @@ def generate_snippets():
                 )
                 
                 snippet = response.choices[0].message.content.strip()
+                
+                # Format the source citation with date and link
+                if news_articles:
+                    article = news_articles[0]  # Use the most recent article
+                    published_date = datetime.strptime(article['publishedAt'], '%Y-%m-%dT%H:%M:%SZ').strftime('%B %d, %Y')
+                    source_name = article.get('source', {}).get('name', 'Unknown')
+                    article_url = article.get('url', '')
+                    snippet += f"\n\nSource: {source_name} ({published_date}) - {article_url}"
                 
                 # Save snippet with source data
                 cursor.execute(
