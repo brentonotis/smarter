@@ -212,8 +212,19 @@ function createPanel() {
       newForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const errorDiv = document.getElementById('errorMessage');
-        const loadingDiv = document.getElementById('loadingMessage');
+        const errorDiv = document.createElement('div');
+        errorDiv.id = 'errorMessage';
+        errorDiv.className = 'error-message';
+        errorDiv.style.cssText = 'color: #dc3545; margin-top: 10px; text-align: center; display: none;';
+        newForm.appendChild(errorDiv);
+        
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loadingMessage';
+        loadingDiv.className = 'loading-message';
+        loadingDiv.style.cssText = 'color: #007bff; margin-top: 10px; text-align: center; display: none;';
+        loadingDiv.textContent = 'Logging in...';
+        newForm.appendChild(loadingDiv);
+        
         const submitButton = e.target.querySelector('button[type="submit"]');
         
         errorDiv.style.display = 'none';

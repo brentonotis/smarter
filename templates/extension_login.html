@@ -70,61 +70,7 @@
                 <input type="password" id="password" name="password" required autocomplete="current-password">
             </div>
             <button type="submit">Login</button>
-            <div id="errorMessage" class="error-message"></div>
-            <div id="loadingMessage" class="loading-message">Logging in...</div>
         </form>
     </div>
-
-    <script>
-        document.getElementById('smarter-login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const errorDiv = document.getElementById('errorMessage');
-            const loadingDiv = document.getElementById('loadingMessage');
-            const submitButton = e.target.querySelector('button[type="submit"]');
-            
-            errorDiv.style.display = 'none';
-            loadingDiv.style.display = 'block';
-            submitButton.disabled = true;
-            
-            const formData = new FormData(e.target);
-            try {
-                const response = await fetch('/api/extension/login', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-                    },
-                    credentials: 'include'
-                });
-                
-                const data = await response.json();
-                if (data.status === 'success') {
-                    // Send message to parent window (extension)
-                    window.opener.postMessage({
-                        type: 'login_success',
-                        user: data.user
-                    }, '*');
-                    
-                    // Close the window if it was opened by the extension
-                    if (window.opener) {
-                        window.close();
-                    }
-                } else {
-                    errorDiv.textContent = data.message || 'Login failed. Please try again.';
-                    errorDiv.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                errorDiv.textContent = 'An error occurred during login. Please try again.';
-                errorDiv.style.display = 'block';
-            } finally {
-                loadingDiv.style.display = 'none';
-                submitButton.disabled = false;
-            }
-        });
-    </script>
 </body>
 </html> 
