@@ -109,7 +109,8 @@ redis_pool = redis.ConnectionPool(
     max_connections=5,
     retry_on_timeout=True,
     health_check_interval=30,
-    connection_class=redis.SSLConnection if use_ssl else redis.Connection
+    connection_class=redis.SSLConnection if use_ssl else redis.Connection,
+    ssl_cert_reqs=None  # Disable SSL certificate verification
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
 
@@ -912,4 +913,22 @@ def generate_snippets():
         return jsonify({
             'status': 'error',
             'message': 'An error occurred while generating snippets.'
+        }), 500
+
+@app.route('/api/status')
+@login_required
+def get_api_status():
+    try:
+        limits = check_api_limits(current_user.id)
+        return jsonify({
+            'openai_tokens_used': limits.get('openai_tokens_used', 0),
+            'openai_daily_limit': app.config['OPENAI_DAILY_LIMIT'],
+            'news_api_calls': limits.get('news_api_calls', 0),
+            'news_api_daily_limit': app.config['NEWS_API_DAILY_LIMIT'],
+            'within_limits': not (limits.get('openai_limit_reached', False) or limits.get('news_api_limit_reached', False))
+        })
+    except Exception as e:
+        logger.error(f"Error getting API status: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to get API status'
         }), 500
