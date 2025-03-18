@@ -27,6 +27,10 @@ import threading
 from db_config import init_db_pool, get_db_connection, release_db_connection, db_pool
 import werkzeug.exceptions
 
+# Initialize Flask app first
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +39,7 @@ handler.setFormatter(logging.Formatter(
     '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
 ))
 logger.addHandler(handler)
+app.logger.addHandler(handler)
 
 # Add AJAX request check
 def is_xhr(self):
@@ -43,34 +48,90 @@ def is_xhr(self):
 
 request.is_xhr = property(is_xhr)
 
-app = Flask(__name__)
-app.logger.addHandler(handler)  # Add the handler to Flask's logger
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session timeout to 24 hours
-app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
+
+# Initialize Flask-Mail
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', '587'))
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+mail = Mail(app)
+
+# Initialize token serializer
+serializer = URLSafeTimedSerializer(app.secret_key)
+
+# Configure session
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_DOMAIN'] = None
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_PATH'] = '/'
+app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
+
+# Configure API limits
+app.config['OPENAI_DAILY_LIMIT'] = 100000
 app.config['NEWS_API_DAILY_LIMIT'] = 95
+RATE_LIMIT_WARNING_THRESHOLD = 0.8
 
 # Rate limiting data structures
 ip_request_counts = defaultdict(int)
 ip_last_reset = defaultdict(float)
-
-# Rate limiting for login attempts
 login_attempts = defaultdict(list)
 MAX_LOGIN_ATTEMPTS = 5
-LOGIN_TIMEOUT = 900  # 15 minutes in seconds
+LOGIN_TIMEOUT = 900
 
-# Rate limit warning threshold (80% of limit)
-RATE_LIMIT_WARNING_THRESHOLD = 0.8
+# Initialize Redis
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+parsed_url = urlparse(redis_url)
+use_ssl = parsed_url.scheme == 'rediss'
 
-def is_login_allowed(email):
-    """Check if login is allowed for the given email"""
-    current_time = time.time()
-    # Remove attempts older than timeout
-    login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
-    # Check if number of recent attempts exceeds limit
-    return len(login_attempts[email]) < MAX_LOGIN_ATTEMPTS
+redis_host = parsed_url.hostname or 'localhost'
+redis_port = parsed_url.port or 6379
+redis_password = parsed_url.password
+redis_db = int(parsed_url.path.lstrip('/')) if parsed_url.path else 0
 
-# Initialize database pool
+redis_pool = redis.ConnectionPool(
+    host=redis_host,
+    port=redis_port,
+    password=redis_password,
+    db=redis_db,
+    decode_responses=True,
+    socket_timeout=5,
+    socket_connect_timeout=5,
+    max_connections=5,
+    retry_on_timeout=True,
+    health_check_interval=30,
+    connection_class=redis.SSLConnection if use_ssl else redis.Connection
+)
+redis_client = redis.Redis(connection_pool=redis_pool)
+
+# Configure CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept"],
+        "supports_credentials": True,
+        "expose_headers": ["Content-Type", "X-CSRFToken"],
+        "max_age": 600
+    }
+})
+
+# Configure OpenAI
+openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+# Initialize database
 try:
     init_db_pool()
     logger.info("Database pool initialized successfully")
@@ -193,53 +254,6 @@ def init_app():
 with app.app_context():
     init_app()
 
-# Update CORS configuration
-CORS(app, resources={
-    r"/*": {
-        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept"],
-        "supports_credentials": True,
-        "expose_headers": ["Content-Type", "X-CSRFToken"],
-        "max_age": 600
-    }
-})
-
-# Add session configuration
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # Only require HTTPS in production
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_DOMAIN'] = None
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_PATH'] = '/'
-app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
-
-# Initialize Redis and caching
-redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-parsed_url = urlparse(redis_url)
-use_ssl = parsed_url.scheme == 'rediss'
-
-# Parse Redis URL components
-redis_host = parsed_url.hostname or 'localhost'
-redis_port = parsed_url.port or 6379
-redis_password = parsed_url.password
-redis_db = int(parsed_url.path.lstrip('/')) if parsed_url.path else 0
-
-# Create connection pool
-redis_pool = redis.ConnectionPool(
-    host=redis_host,
-    port=redis_port,
-    password=redis_password,
-    db=redis_db,
-    decode_responses=True,
-    socket_timeout=5,
-    socket_connect_timeout=5,
-    max_connections=5,
-    retry_on_timeout=True,
-    health_check_interval=30,
-    connection_class=redis.SSLConnection if use_ssl else redis.Connection
-)
-redis_client = redis.Redis(connection_pool=redis_pool)
-
 # Cache settings
 CACHE_TIMEOUT = {
     'news': 900,    # 15 minutes for news
@@ -281,26 +295,6 @@ def cache_with_timeout(timeout):
         return decorated_function
     return decorator
 
-# Initialize Flask-Mail
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', '587'))
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
-
-mail = Mail(app)
-
-# Initialize token serializer for password reset
-serializer = URLSafeTimedSerializer(app.secret_key)
-
-# Initialize Flask-Login
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-login_manager.login_message = 'Please log in to access this page.'
-login_manager.login_message_category = 'info'
-
 # User class for Flask-Login
 class User(UserMixin):
     def __init__(self, id, email, password_hash):
@@ -322,9 +316,6 @@ def load_user(user_id):
     except Exception as e:
         print(f"Error loading user: {e}")
     return None
-
-# Configure OpenAI API
-openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 @app.before_request
 def before_request():
@@ -387,8 +378,6 @@ def handle_error(error):
         }), 500
     flash('An unexpected error occurred. Please try again later.', 'error')
     return redirect(url_for('index'))
-
-csrf = CSRFProtect(app)
 
 @app.after_request
 def add_security_headers(response):
@@ -839,3 +828,11 @@ def register():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+def is_login_allowed(email):
+    """Check if login is allowed for the given email"""
+    current_time = time.time()
+    # Remove attempts older than timeout
+    login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
+    # Check if number of recent attempts exceeds limit
+    return len(login_attempts[email]) < MAX_LOGIN_ATTEMPTS
