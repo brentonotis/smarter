@@ -36,6 +36,13 @@ handler.setFormatter(logging.Formatter(
 ))
 logger.addHandler(handler)
 
+# Add AJAX request check
+def is_xhr(self):
+    """Check if the request is an AJAX request"""
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+request.is_xhr = property(is_xhr)
+
 app = Flask(__name__)
 app.logger.addHandler(handler)  # Add the handler to Flask's logger
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
@@ -720,13 +727,19 @@ def login():
             password = request.form.get('password')
             
             if not email or not password:
-                flash('Email and password are required', 'error')
+                message = 'Email and password are required'
+                if request.is_xhr:
+                    return jsonify({'status': 'error', 'message': message}), 400
+                flash(message, 'error')
                 return render_template('login.html')
             
             # Check if login is allowed
             if not is_login_allowed(email):
                 remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-                flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.', 'error')
+                message = f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
+                if request.is_xhr:
+                    return jsonify({'status': 'error', 'message': message}), 429
+                flash(message, 'error')
                 return render_template('login.html')
             
             with get_db_connection() as conn:
@@ -745,15 +758,28 @@ def login():
                     next_page = request.args.get('next')
                     if not next_page or url_parse(next_page).netloc != '':
                         next_page = url_for('index')
+                    
+                    if request.is_xhr:
+                        return jsonify({
+                            'status': 'success',
+                            'message': 'Login successful',
+                            'redirect': next_page
+                        })
                     return redirect(next_page)
                 
                 # Record failed attempt
                 login_attempts[email].append(time.time())
-                flash('Invalid email or password', 'error')
+                message = 'Invalid email or password'
+                if request.is_xhr:
+                    return jsonify({'status': 'error', 'message': message}), 401
+                flash(message, 'error')
                 
         except Exception as e:
             logger.error(f"Login error: {str(e)}", exc_info=True)
-            flash('An error occurred during login. Please try again.', 'error')
+            message = 'An error occurred during login. Please try again.'
+            if request.is_xhr:
+                return jsonify({'status': 'error', 'message': message}), 500
+            flash(message, 'error')
     
     return render_template('login.html')
 

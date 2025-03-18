@@ -35,7 +35,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const errorContainer = document.getElementById('error-container');
+    const submitButton = e.target.querySelector('button[type="submit"]');
     errorContainer.style.display = 'none';
+    submitButton.disabled = true;
     
     try {
         const response = await fetch('/login', {
@@ -49,8 +51,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         });
         
         const data = await response.json();
-        if (data.status === 'success') {
-            window.location.href = '/';
+        if (response.ok && data.status === 'success') {
+            window.location.href = data.redirect || '/';
         } else {
             errorContainer.textContent = data.message || 'Login failed. Please try again.';
             errorContainer.style.display = 'block';
@@ -59,6 +61,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         console.error('Login error:', error);
         errorContainer.textContent = 'An error occurred during login. Please try again.';
         errorContainer.style.display = 'block';
+    } finally {
+        submitButton.disabled = false;
     }
 });
 </script>
