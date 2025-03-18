@@ -43,14 +43,6 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
 app.config['NEWS_API_DAILY_LIMIT'] = 95
 
-# Initialize database pool
-try:
-    init_db_pool()
-    logger.info("Database pool initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize database pool: {e}")
-    raise
-
 # Rate limiting data structures
 ip_request_counts = defaultdict(int)
 ip_last_reset = defaultdict(float)
@@ -59,6 +51,25 @@ ip_last_reset = defaultdict(float)
 login_attempts = defaultdict(list)
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_TIMEOUT = 900  # 15 minutes in seconds
+
+# Rate limit warning threshold (80% of limit)
+RATE_LIMIT_WARNING_THRESHOLD = 0.8
+
+def is_login_allowed(email):
+    """Check if login is allowed for the given email"""
+    current_time = time.time()
+    # Remove attempts older than timeout
+    login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
+    # Check if number of recent attempts exceeds limit
+    return len(login_attempts[email]) < MAX_LOGIN_ATTEMPTS
+
+# Initialize database pool
+try:
+    init_db_pool()
+    logger.info("Database pool initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database pool: {e}")
+    raise
 
 # Cleanup function for data structures
 def cleanup_data_structures():
@@ -353,9 +364,6 @@ def check_api_limits(user_id):
             "openai_limit_reached": usage['openai_tokens_used'] >= app.config['OPENAI_DAILY_LIMIT'] if usage else False,
             "news_api_limit_reached": usage['news_api_calls'] >= app.config['NEWS_API_DAILY_LIMIT'] if usage else False
         }
-
-# Rate limit warning threshold (80% of limit)
-RATE_LIMIT_WARNING_THRESHOLD = 0.8
 
 # Custom error handler
 @app.errorhandler(Exception)
