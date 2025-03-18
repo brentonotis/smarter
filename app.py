@@ -129,6 +129,10 @@ CORS(app, resources={
 # Configure OpenAI
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
+# Configure News API
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY")
+NEWS_API_BASE_URL = "https://newsapi.org/v2"
+
 # Initialize database
 try:
     init_db_pool()
@@ -465,6 +469,54 @@ def schedule_redis_cleanup():
 @app.route('/bookmarklet')
 def bookmarklet():
     return render_template('bookmarklet.html')
+
+def fetch_company_news(company_name):
+    """Fetch recent news articles about a company using News API"""
+    try:
+        # Check if we've hit the daily limit
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            today = datetime.now().date()
+            
+            cursor.execute("""
+                SELECT news_api_calls 
+                FROM api_usage 
+                WHERE user_id = %s AND date = %s
+            """, (current_user.id, today))
+            usage = cursor.fetchone()
+            
+            if usage and usage['news_api_calls'] >= app.config['NEWS_API_DAILY_LIMIT']:
+                logger.warning(f"News API daily limit reached for user {current_user.id}")
+                return []
+            
+            # Update usage count
+            cursor.execute("""
+                INSERT INTO api_usage (user_id, date, news_api_calls)
+                VALUES (%s, %s, 1)
+                ON CONFLICT (user_id, date)
+                DO UPDATE SET news_api_calls = api_usage.news_api_calls + 1
+            """, (current_user.id, today))
+            conn.commit()
+            cursor.close()
+        
+        # Make request to News API
+        params = {
+            'q': company_name,
+            'language': 'en',
+            'sortBy': 'publishedAt',
+            'pageSize': 5,  # Get 5 most recent articles
+            'apiKey': NEWS_API_KEY
+        }
+        
+        response = requests.get(f"{NEWS_API_BASE_URL}/everything", params=params)
+        response.raise_for_status()
+        
+        articles = response.json().get('articles', [])
+        return articles
+        
+    except Exception as e:
+        logger.error(f"Error fetching news for {company_name}: {str(e)}")
+        return []
 
 @app.route('/api/analyze', methods=['POST'])
 @login_required
@@ -862,6 +914,18 @@ def generate_snippets():
                 )
                 target_id = cursor.fetchone()[0]
                 
+                # Fetch recent news about the target company
+                news_articles = []
+                if target['type'] == 'company':
+                    news_articles = fetch_company_news(target['name'])
+                
+                # Prepare news context for the prompt
+                news_context = ""
+                if news_articles:
+                    news_context = "\nRecent News:\n"
+                    for article in news_articles:
+                        news_context += f"- {article['title']} ({article['publishedAt']})\n"
+                
                 # Generate snippet using OpenAI
                 prompt = f"""Generate a personalized outreach message for {target['name']} ({target['type']}) from {user_company['name']}.
                 
@@ -873,13 +937,20 @@ def generate_snippets():
                 Target:
                 Name: {target['name']}
                 Type: {target['type']}
+                {news_context}
                 
-                Generate a professional, personalized outreach message that highlights the value proposition and potential benefits for the target."""
+                Generate a professional, personalized outreach message that:
+                1. References recent news about the target company (if available)
+                2. Highlights how your company's solution aligns with their current needs
+                3. Demonstrates understanding of their industry and challenges
+                4. Provides specific value proposition and potential benefits
+                
+                Make the message conversational and engaging while maintaining professionalism."""
                 
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "You are a professional sales outreach specialist."},
+                        {"role": "system", "content": "You are a professional sales outreach specialist who creates personalized, engaging messages based on company information and recent news."},
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=500,
@@ -888,16 +959,17 @@ def generate_snippets():
                 
                 snippet = response.choices[0].message.content.strip()
                 
-                # Save snippet
+                # Save snippet with source data
                 cursor.execute(
-                    "INSERT INTO snippets (target_id, content) VALUES (%s, %s)",
-                    (target_id, snippet)
+                    "INSERT INTO snippets (target_id, content, source_data) VALUES (%s, %s, %s)",
+                    (target_id, snippet, json.dumps({'news_articles': news_articles}))
                 )
                 
                 results.append({
                     'name': target['name'],
                     'type': target['type'],
-                    'snippet': snippet
+                    'snippet': snippet,
+                    'news_articles': news_articles
                 })
             
             conn.commit()
