@@ -120,7 +120,14 @@ def init_db():
         raise
 
 # Initialize database tables when the app starts
-# init_db()  # Remove this line
+with app.app_context():
+    try:
+        init_db_pool()  # Initialize the connection pool first
+        init_db()       # Then initialize the database tables
+        schedule_cleanup()
+    except Exception as e:
+        logger.error(f"Application initialization error: {e}")
+        raise
 
 # Update CORS configuration
 CORS(app, resources={
@@ -291,602 +298,21 @@ def init_app():
     init_db_pool()
     schedule_cleanup()
 
-# Initialize the app when it starts
-if __name__ == '__main__':
-    # Initialize the app when it starts
-    with app.app_context():
-        try:
-            init_db_pool()  # Initialize the connection pool first
-            init_db()       # Then initialize the database tables
-            schedule_cleanup()
-        except Exception as e:
-            logger.error(f"Application initialization error: {e}")
-            raise
-    app.run(debug=True)
-
-@app.teardown_appcontext
-def teardown_db(exception):
-    conn = getattr(g, '_database', None)
-    if conn is not None:
-        release_db_connection(conn)
-
-# Update tracking functions to include user_id
-def track_openai_usage(user_id, token_count):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        today = datetime.now().date()
-        
-        cursor.execute('''
-            INSERT INTO api_usage (user_id, date, openai_tokens_used)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (user_id, date)
-            DO UPDATE SET openai_tokens_used = api_usage.openai_tokens_used + EXCLUDED.openai_tokens_used
-        ''', (user_id, today, token_count))
-        
-        cursor.close()
-        conn.commit()
-
-def track_news_api_call(user_id):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        today = datetime.now().date()
-        
-        cursor.execute('''
-            INSERT INTO api_usage (user_id, date, news_api_calls)
-            VALUES (%s, %s, 1)
-            ON CONFLICT (user_id, date)
-            DO UPDATE SET news_api_calls = api_usage.news_api_calls + 1
-        ''', (user_id, today))
-        
-        cursor.close()
-        conn.commit()
-
-@cache_with_timeout(CACHE_TIMEOUT['news'])  # Use 15 minutes for news cache
-def fetch_company_news(company_name, user_id):
-    # Check limits first
-    limits = check_api_limits(user_id)
-    if limits["news_api_limit_reached"]:
-        return [
-            {
-                "title": f"[DAILY LIMIT REACHED] Mock news about {company_name}",
-                "description": f"We've reached our daily API limit. Using mock data for {company_name}.",
-                "url": "https://example.com/news"
-            }
-        ]
-
-    api_key = os.environ.get("NEWS_API_KEY")
-    if not api_key:
-        # Return mock data for testing if no API key
-        return [
-            {
-                "title": f"Recent news about {company_name}",
-                "description": f"{company_name} has been growing rapidly in the tech sector.",
-                "url": "https://example.com/news"
-            }
-        ]
-    
-    url = f"https://newsapi.org/v2/everything?q={company_name}&sortBy=publishedAt&apiKey={api_key}"
-    response = requests.get(url)
-
-    # Track this API call
-    track_news_api_call(user_id)
-    
-    if response.status_code == 200:
-        data = response.json()
-        if data.get("articles"):
-            return data["articles"][:3]  # Return top 3 most recent articles
-    
-    # Return mock data if API call fails
-    return [
-        {
-            "title": f"Recent news about {company_name}",
-            "description": f"{company_name} has been growing rapidly in the tech sector.",
-            "url": "https://example.com/news"
-        }
-    ]
-
-# Generate personalized snippet using OpenAI
-def generate_snippet(name, entity_type, context_data, user_id, user_company):
-    # Check limits first
-    limits = check_api_limits(user_id)
-    if limits["openai_limit_reached"]:
-        return f"[DAILY LIMIT REACHED] Using template response for {name}. Our solution could help you optimize operations and increase efficiency."
-
-    try:
-        if not os.environ.get("OPENAI_API_KEY"):
-            # Return mock response if no API key
-            return f"I noticed that {name} has been expanding in the industry recently, which aligns perfectly with how our solution could help streamline operations and increase efficiency."
-
-        prompt = f"""
-        Generate a personalized cold outreach snippet for {entity_type} named {name}.
-        
-        About our company ({user_company['name']}):
-        {user_company['description']}
-        Target industries: {user_company['target_industries']}
-        
-        Recent information about {name}:
-        {json.dumps(context_data, indent=2)}
-        
-        Generate a personalized outreach message that:
-        1. Shows understanding of {name}'s recent activities or challenges
-        2. Explains how our company's solution could specifically help them
-        3. References any industry-specific benefits based on our target industries
-        4. Is conversational and authentic (2-3 sentences)
-        5. Avoids generic statements
-        """
-        
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert at creating personalized sales outreach messages that are authentic and relevant to the recipient's needs."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=200,
-            temperature=0.7
-        )
-        
-        # Estimate token usage (approximate)
-        prompt_tokens = len(prompt) // 4  # rough estimate
-        completion_tokens = len(response.choices[0].message["content"]) // 4
-        total_tokens = prompt_tokens + completion_tokens
-        
-        # Track usage
-        track_openai_usage(user_id, total_tokens)
-        
-        return response.choices[0].message["content"].strip()
-    except Exception as e:
-        print(f"Error generating snippet: {e}")
-        return f"I noticed that {name} has been making waves in the industry lately. Our solution could help you capitalize on this momentum by streamlining your operations."
-
-# Authentication routes
-def is_login_allowed(email):
-    """Check if login is allowed based on previous attempts"""
-    current_time = time.time()
-    # Remove attempts older than timeout
-    login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
-    
-    # Check number of recent attempts
-    if len(login_attempts[email]) >= MAX_LOGIN_ATTEMPTS:
-        return False
-    return True
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    # If user is already logged in, redirect to index
-    if current_user.is_authenticated:
-        if request.headers.get('Accept') == 'application/json':
-            return jsonify({
-                'status': 'success',
-                'message': 'Already logged in',
-                'user': {
-                    'email': current_user.email,
-                    'id': current_user.id
-                }
-            })
-        return redirect(url_for('index'))
-    
-    # Clear any existing session data
-    session.clear()
-    
-    form = FlaskForm()
-    if request.method == 'POST':
-        try:
-            # Validate CSRF token
-            if not form.validate():
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid CSRF token'
-                }), 400
-
-            email = request.form.get('email')
-            password = request.form.get('password')
-            
-            if not email or not password:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Email and password are required'
-                }), 400
-            
-            # Check if login is allowed
-            if not is_login_allowed(email):
-                remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
-                }), 429
-            
-            try:
-                with get_db_connection() as conn:
-                    cursor = conn.cursor(cursor_factory=RealDictCursor)
-                    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                    user_data = cursor.fetchone()
-                    cursor.close()
-                    
-                    if user_data and check_password_hash(user_data['password_hash'], password):
-                        user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                        login_user(user, remember=True)  # Enable remember me
-                        session.permanent = True
-                        
-                        # Clear login attempts on successful login
-                        login_attempts[email] = []
-                        
-                        return jsonify({
-                            'status': 'success',
-                            'message': 'Login successful',
-                            'user': {
-                                'email': user.email,
-                                'id': user.id
-                            }
-                        })
-                    
-                    # Record failed attempt
-                    login_attempts[email].append(time.time())
-                    
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Invalid email or password'
-                    }), 401
-            except Exception as e:
-                logger.error(f"Database error during login: {str(e)}", exc_info=True)
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Database error occurred. Please try again.'
-                }), 500
-                
-        except Exception as e:
-            logger.error(f"Login error: {str(e)}", exc_info=True)
-            return jsonify({
-                'status': 'error',
-                'message': 'An error occurred during login. Please try again.'
-            }), 500
-    
-    # GET request - return the appropriate format based on Accept header
-    if request.headers.get('Accept') == 'application/json':
-        return jsonify({
-            'status': 'success',
-            'html': render_template('extension_login.html', form=form),
-            'csrf_token': form.csrf_token.current_token
-        })
-    return render_template('login.html', form=form)
-
-def validate_password(password):
-    """
-    Validate password complexity:
-    - At least 8 characters long
-    - Contains at least one uppercase letter
-    - Contains at least one lowercase letter
-    - Contains at least one number
-    - Contains at least one special character
-    """
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long"
-    if not re.search(r"[A-Z]", password):
-        return False, "Password must contain at least one uppercase letter"
-    if not re.search(r"[a-z]", password):
-        return False, "Password must contain at least one lowercase letter"
-    if not re.search(r"\d", password):
-        return False, "Password must contain at least one number"
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        return False, "Password must contain at least one special character"
-    return True, "Password is valid"
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    form = FlaskForm()
-    if request.method == 'POST':
-        if form.validate_on_submit():
-            email = request.form.get('email')
-            password = request.form.get('password')
-            
-            if not email or not password:
-                flash('Email and password are required')
-                return render_template('register.html', form=form)
-            
-            # Validate password complexity
-            is_valid, message = validate_password(password)
-            if not is_valid:
-                flash(message)
-                return render_template('register.html', form=form)
-            
-            try:
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    
-                    # Check if user already exists
-                    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-                    if cursor.fetchone():
-                        flash('Email already registered')
-                        return render_template('register.html', form=form)
-                    
-                    # Create new user
-                    cursor.execute(
-                        "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
-                        (email, generate_password_hash(password))
-                    )
-                    user_id = cursor.fetchone()[0]
-                    conn.commit()
-                    
-                    # Log the user in
-                    user = User(user_id, email, generate_password_hash(password))
-                    login_user(user)
-                    
-                    cursor.close()
-                    
-                    return redirect(url_for('index'))
-            except Exception as e:
-                print(f"Registration error: {e}")
-                flash('An error occurred during registration. Please try again.')
-                
-    return render_template('register.html', form=form)
-
-@app.route('/logout')
-@login_required
-def logout():
-    try:
-        # Clear all session data
-        session.clear()
-        
-        # Logout the user
-        logout_user()
-        
-        # Create response with redirect
-        response = redirect(url_for('login'))
-        
-        # Clear all cookies
-        response.delete_cookie('smarter_session')
-        response.delete_cookie('session')
-        response.delete_cookie('remember_token')
-        
-        # Add cache control headers to prevent caching
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        
-        # Add a success message
-        flash('You have been logged out successfully.', 'info')
-        
-        return response
-    except Exception as e:
-        logger.error(f"Logout error: {e}")
-        # If there's an error, still try to redirect to login
-        return redirect(url_for('login'))
-
-@app.route('/')
-@login_required
-def index():
-    # If user is not authenticated, redirect to login
-    if not current_user.is_authenticated:
-        if request.headers.get('Accept') == 'application/json':
-            return jsonify({
-                'status': 'error',
-                'message': 'Not authenticated'
-            }), 401
-        # Clear any existing session data
-        session.clear()
-        # Add cache control headers to prevent caching
-        response = redirect(url_for('login'))
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-        return response
-    
-    # If it's an AJAX request, return JSON
-    if request.headers.get('Accept') == 'application/json':
-        return jsonify({
-            'status': 'success',
-            'user': {
-                'email': current_user.email,
-                'id': current_user.id
-            }
-        })
-    
-    return render_template('index.html')
-
-def log_performance(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        start_time = time.time()
-        result = f(*args, **kwargs)
-        duration = time.time() - start_time
-        logger.info(f'Performance: {f.__name__} took {duration:.2f} seconds')
-        
-        # Store in Redis for monitoring
-        try:
-            key = f'perf:{f.__name__}:{datetime.now().strftime("%Y-%m-%d")}'
-            redis_client.lpush(key, duration)
-            redis_client.ltrim(key, 0, 999)  # Keep last 1000 measurements
-            redis_client.expire(key, 86400)  # Expire after 24 hours
-        except redis.exceptions.RedisError as e:
-            logger.error(f'Redis performance logging error: {e}')
-        
-        return result
-    return decorated_function
-
-@app.route('/api/generate', methods=['POST'])
-@login_required
-@log_performance
-def generate():
-    # Rate limiting
-    client_ip = request.remote_addr
-    current_time = time.time()
-    
-    # Reset counter if it's been more than an hour
-    if current_time - ip_last_reset[client_ip] > 3600:
-        ip_request_counts[client_ip] = 0
-        ip_last_reset[client_ip] = current_time
-    
-    # Check if rate limit exceeded (10 requests per hour)
-    if ip_request_counts[client_ip] >= 10:
-        return jsonify({
-            "error": "Rate limit exceeded. Please try again later.",
-            "remaining_time": int(3600 - (current_time - ip_last_reset[client_ip]))
-        }), 429
-    
-    # Increment request counter
-    ip_request_counts[client_ip] += 1
-    
-    data = request.json
-    if not data or 'targets' not in data or 'userCompany' not in data:
-        return jsonify({"error": "Missing required data"}), 400
-    
-    results = []
-    with get_db_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
-        try:
-            for target in data['targets']:
-                name = target.get('name', '').strip()
-                entity_type = target.get('type', 'company').lower()
-                
-                if not name:
-                    continue
-                    
-                # Insert target into database with user_id
-                cursor.execute(
-                    "INSERT INTO targets (user_id, name, type) VALUES (%s, %s, %s) RETURNING id",
-                    (current_user.id, name, entity_type)
-                )
-                target_id = cursor.fetchone()['id']
-                
-                # Fetch contextual data
-                if entity_type == 'company':
-                    context_data = fetch_company_news(name, current_user.id)
-                else:
-                    context_data = [{"description": f"{name} is a professional in the industry."}]
-                
-                # Generate the snippet with user company context
-                snippet = generate_snippet(name, entity_type, context_data, current_user.id, data['userCompany'])
-                
-                # Save the snippet
-                cursor.execute(
-                    "INSERT INTO snippets (target_id, content, source_data) VALUES (%s, %s, %s)",
-                    (target_id, snippet, json.dumps(context_data))
-                )
-                
-                results.append({
-                    "name": name,
-                    "type": entity_type,
-                    "snippet": snippet
-                })
-            
-            conn.commit()
-        except Exception as e:
-            print(f"Error processing request: {e}")
-            return jsonify({"error": str(e)}), 500
-        finally:
-            cursor.close()
-    
-    return jsonify({"results": results})
-
-@app.route('/api/status')
-@login_required
-@log_performance
-def api_status():
-    with get_db_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        today = datetime.now().date()
-        
-        cursor.execute("""
-            SELECT openai_tokens_used, news_api_calls 
-            FROM api_usage 
-            WHERE user_id = %s AND date = %s
-        """, (current_user.id, today))
-        usage = cursor.fetchone()
-        
-        cursor.close()
-    
-    # Set your daily limits
-    openai_daily_limit = 100000  # tokens
-    news_api_daily_limit = 95    # calls
-    
-    if not usage:
-        usage = {'openai_tokens_used': 0, 'news_api_calls': 0}
-    
-    return jsonify({
-        "openai_tokens_used": usage['openai_tokens_used'],
-        "news_api_calls": usage['news_api_calls'],
-        "openai_daily_limit": openai_daily_limit,
-        "news_api_daily_limit": news_api_daily_limit,
-        "within_limits": (
-            usage['openai_tokens_used'] < openai_daily_limit and 
-            usage['news_api_calls'] < news_api_daily_limit
-        )
-    })
-
-def send_password_reset_email(user_email):
-    token = serializer.dumps(user_email, salt='password-reset-salt')
-    reset_url = url_for('reset_password', token=token, _external=True)
-    
-    msg = Message('Password Reset Request',
-                 recipients=[user_email])
-    msg.body = f'''To reset your password, visit the following link:
-{reset_url}
-
-If you did not make this request, simply ignore this email.
-'''
-    mail.send(msg)
-
-@app.route('/reset_password_request', methods=['GET', 'POST'])
-def reset_password_request():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email')
-        
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if user:
-            send_password_reset_email(email)
-        flash('Check your email for instructions to reset your password')
-        return redirect(url_for('login'))
-    
-    return render_template('reset_password_request.html')
-
-@app.route('/reset_password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    
-    try:
-        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)  # 1 hour expiration
-    except:
-        flash('The password reset link is invalid or has expired')
-        return redirect(url_for('reset_password_request'))
-    
-    if request.method == 'POST':
-        password = request.form.get('password')
-        
-        # Validate password complexity
-        is_valid, message = validate_password(password)
-        if not is_valid:
-            flash(message)
-            return render_template('reset_password.html')
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE users SET password_hash = %s WHERE email = %s",
-            (generate_password_hash(password), email)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        flash('Your password has been reset')
-        return redirect(url_for('login'))
-    
-    return render_template('reset_password.html')
-
 @app.before_request
 def before_request():
     session.permanent = True  # Enable session timeout
     session.modified = True   # Reset the session timeout on each request
+    
+    # Ensure database pool is initialized
+    if db_pool is None:
+        try:
+            init_db_pool()
+        except Exception as e:
+            logger.error(f"Failed to initialize database pool in before_request: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Database connection error'
+            }), 500
     
     if current_user.is_authenticated:
         # Check rate limits and warn if approaching
@@ -1151,6 +577,19 @@ def extension_login_form():
 @app.route('/api/company-info', methods=['GET', 'POST'])
 @login_required
 def company_info():
+    # Ensure database pool is initialized
+    global db_pool
+    if db_pool is None:
+        try:
+            init_db_pool()
+            logger.info("Database pool initialized in company_info route")
+        except Exception as e:
+            logger.error(f"Failed to initialize database pool in company_info: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Database connection error'
+            }), 500
+
     if request.method == 'GET':
         try:
             with get_db_connection() as conn:
@@ -1222,24 +661,22 @@ def company_info():
                     ))
                     company_id = cursor.fetchone()[0]
                     conn.commit()
-                    cursor.close()
-                    
                     logger.info(f"Successfully updated company info for user {current_user.id}")
                     return jsonify({
                         'status': 'success',
-                        'message': 'Company information saved successfully',
-                        'company_id': company_id
+                        'message': 'Company information saved successfully'
                     })
                 except Exception as e:
                     conn.rollback()
-                    logger.error(f"Database error while saving company info: {str(e)}", exc_info=True)
+                    logger.error(f"Database error during company info update: {str(e)}", exc_info=True)
                     return jsonify({
                         'status': 'error',
-                        'message': 'Error saving company information to database'
+                        'message': 'Error saving company information'
                     }), 500
-                
+                finally:
+                    cursor.close()
         except Exception as e:
-            logger.error(f"Error processing company info update: {str(e)}", exc_info=True)
+            logger.error(f"Error in company info update: {str(e)}", exc_info=True)
             return jsonify({
                 'status': 'error',
                 'message': 'Error processing company information update'

@@ -138,7 +138,7 @@
                 alert('Error loading company information. Please try refreshing the page.');
             });
             
-            saveCompanyBtn.addEventListener('click', function() {
+            saveCompanyBtn.addEventListener('click', async function() {
                 const companyData = {
                     name: companyName.value.trim(),
                     description: companyDescription.value.trim(),
@@ -150,35 +150,43 @@
                     return;
                 }
                 
-                fetch('/api/company-info', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(companyData),
-                    credentials: 'include'
-                })
-                .then(response => {
+                // Disable the button and show loading state
+                saveCompanyBtn.disabled = true;
+                saveCompanyBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+                
+                try {
+                    const response = await fetch('/api/company-info', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(companyData),
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error(data.message || 'Error saving company information');
                     }
-                    return response.json();
-                })
-                .then(data => {
+                    
                     if (data.status === 'success') {
                         alert('Company information saved successfully!');
                         userCompany = companyData;
                     } else {
-                        alert(data.message || 'Error saving company information.');
+                        throw new Error(data.message || 'Error saving company information');
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error('Error:', error);
-                    alert('Error saving company information. Please try again.');
-                });
+                    alert(error.message || 'Error saving company information. Please try again.');
+                } finally {
+                    // Reset button state
+                    saveCompanyBtn.disabled = false;
+                    saveCompanyBtn.innerHTML = 'Save Company Info';
+                }
             });
             
             function updateTargetList() {
