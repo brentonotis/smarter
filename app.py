@@ -36,6 +36,30 @@ handler.setFormatter(logging.Formatter(
 ))
 logger.addHandler(handler)
 
+app = Flask(__name__)
+app.logger.addHandler(handler)  # Add the handler to Flask's logger
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session timeout to 24 hours
+app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
+app.config['NEWS_API_DAILY_LIMIT'] = 95
+
+# Initialize database pool
+try:
+    init_db_pool()
+    logger.info("Database pool initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database pool: {e}")
+    raise
+
+# Rate limiting data structures
+ip_request_counts = defaultdict(int)
+ip_last_reset = defaultdict(float)
+
+# Rate limiting for login attempts
+login_attempts = defaultdict(list)
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_TIMEOUT = 900  # 15 minutes in seconds
+
 # Cleanup function for data structures
 def cleanup_data_structures():
     current_time = time.time()
@@ -58,21 +82,6 @@ def cleanup_data_structures():
 def schedule_cleanup():
     cleanup_data_structures()
     threading.Timer(3600, schedule_cleanup).start()
-
-app = Flask(__name__)
-app.logger.addHandler(handler)  # Add the handler to Flask's logger
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session timeout to 24 hours
-app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
-app.config['NEWS_API_DAILY_LIMIT'] = 95
-
-# Initialize database pool
-try:
-    init_db_pool()
-    logger.info("Database pool initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize database pool: {e}")
-    raise
 
 def init_db():
     """Initialize database tables"""
@@ -142,16 +151,29 @@ def init_db():
         logger.error(f"Database initialization error: {e}")
         raise
 
-# Initialize database tables when the app starts
-with app.app_context():
+def init_app():
+    """Initialize the application"""
     try:
-        init_db_pool()  # Initialize the connection pool first
-        init_db()       # Then initialize the database tables
-        schedule_cleanup()  # Start the cleanup scheduler
+        # Initialize database pool
+        init_db_pool()
+        logger.info("Database pool initialized successfully")
+        
+        # Initialize database tables
+        init_db()
+        logger.info("Database tables initialized successfully")
+        
+        # Start cleanup scheduler
+        schedule_cleanup()
+        logger.info("Cleanup scheduler started successfully")
+        
         logger.info("Application initialization completed successfully")
     except Exception as e:
         logger.error(f"Application initialization error: {e}")
         raise
+
+# Initialize the application
+with app.app_context():
+    init_app()
 
 # Update CORS configuration
 CORS(app, resources={
@@ -285,42 +307,6 @@ def load_user(user_id):
 
 # Configure OpenAI API
 openai.api_key = os.environ.get("OPENAI_API_KEY")
-
-# Rate limiting data structures
-ip_request_counts = defaultdict(int)
-ip_last_reset = defaultdict(float)
-
-# Rate limiting for login attempts
-login_attempts = defaultdict(list)
-MAX_LOGIN_ATTEMPTS = 5
-LOGIN_TIMEOUT = 900  # 15 minutes in seconds
-
-# Cleanup function for data structures
-def cleanup_data_structures():
-    current_time = time.time()
-    # Cleanup login attempts older than timeout
-    for email in list(login_attempts.keys()):
-        login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
-        if not login_attempts[email]:
-            del login_attempts[email]
-    
-    # Cleanup IP request counts older than 1 hour
-    for ip in list(ip_request_counts.keys()):
-        if current_time - ip_last_reset[ip] > 3600:
-            del ip_request_counts[ip]
-            del ip_last_reset[ip]
-    
-    # Force garbage collection
-    gc.collect()
-
-# Schedule cleanup every hour
-def schedule_cleanup():
-    cleanup_data_structures()
-    threading.Timer(3600, schedule_cleanup).start()
-
-def init_app():
-    init_db_pool()
-    schedule_cleanup()
 
 @app.before_request
 def before_request():
