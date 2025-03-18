@@ -43,6 +43,14 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Extend session
 app.config['OPENAI_DAILY_LIMIT'] = 100000  # Define limits as config values
 app.config['NEWS_API_DAILY_LIMIT'] = 95
 
+# Initialize database pool
+try:
+    init_db_pool()
+    logger.info("Database pool initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database pool: {e}")
+    raise
+
 def init_db():
     """Initialize database tables"""
     try:
@@ -463,8 +471,21 @@ def login():
     form = FlaskForm()
     if request.method == 'POST':
         try:
+            # Validate CSRF token
+            if not form.validate():
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid CSRF token'
+                }), 400
+
             email = request.form.get('email')
             password = request.form.get('password')
+            
+            if not email or not password:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Email and password are required'
+                }), 400
             
             # Check if login is allowed
             if not is_login_allowed(email):
@@ -474,39 +495,46 @@ def login():
                     'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
                 }), 429
             
-            with get_db_connection() as conn:
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                user_data = cursor.fetchone()
-                cursor.close()
-                
-                if user_data and check_password_hash(user_data['password_hash'], password):
-                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                    login_user(user, remember=True)  # Enable remember me
-                    session.permanent = True
+            try:
+                with get_db_connection() as conn:
+                    cursor = conn.cursor(cursor_factory=RealDictCursor)
+                    cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                    user_data = cursor.fetchone()
+                    cursor.close()
                     
-                    # Clear login attempts on successful login
-                    login_attempts[email] = []
+                    if user_data and check_password_hash(user_data['password_hash'], password):
+                        user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                        login_user(user, remember=True)  # Enable remember me
+                        session.permanent = True
+                        
+                        # Clear login attempts on successful login
+                        login_attempts[email] = []
+                        
+                        return jsonify({
+                            'status': 'success',
+                            'message': 'Login successful',
+                            'user': {
+                                'email': user.email,
+                                'id': user.id
+                            }
+                        })
+                    
+                    # Record failed attempt
+                    login_attempts[email].append(time.time())
                     
                     return jsonify({
-                        'status': 'success',
-                        'message': 'Login successful',
-                        'user': {
-                            'email': user.email,
-                            'id': user.id
-                        }
-                    })
-                
-                # Record failed attempt
-                login_attempts[email].append(time.time())
-                
+                        'status': 'error',
+                        'message': 'Invalid email or password'
+                    }), 401
+            except Exception as e:
+                logger.error(f"Database error during login: {str(e)}", exc_info=True)
                 return jsonify({
                     'status': 'error',
-                    'message': 'Invalid email or password'
-                }), 401
+                    'message': 'Database error occurred. Please try again.'
+                }), 500
                 
         except Exception as e:
-            logger.error(f"Login error: {e}")
+            logger.error(f"Login error: {str(e)}", exc_info=True)
             return jsonify({
                 'status': 'error',
                 'message': 'An error occurred during login. Please try again.'
