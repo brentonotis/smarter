@@ -964,24 +964,26 @@ def generate_snippets():
                 {news_context}
                 
                 Generate a concise, data-driven outreach message that:
-                1. Opens with a specific metric, statistic, or data point from recent news (include the source)
+                1. Opens with a specific metric or statistic from recent news
                 2. Makes a clear connection between their current situation and your solution
-                3. Includes a specific value proposition with numbers/percentages
+                3. Includes a specific value proposition based on your company's actual capabilities
                 4. Ends with a clear next step
                 
                 Requirements:
                 - Must include at least one specific metric or statistic from the news articles
-                - Must cite the source of any metrics or news mentioned
                 - Keep the message under 3-4 sentences
                 - Be direct and avoid corporate jargon
                 - Focus on concrete benefits rather than features
                 - If you have recent news about their company, lead with that specific data point
-                - Format: Start with the metric/statistic, then connect to your solution, then value proposition, then call to action"""
+                - Format: Start with the metric/statistic, then connect to your solution, then value proposition, then call to action
+                - After the message, add a new line with "Source: [News Source Name]" for any metrics cited
+                - Value propositions should be realistic and based on your company's actual capabilities
+                - Avoid making arbitrary claims about specific dollar amounts unless directly supported by data"""
                 
                 response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "You are a data-driven sales professional who creates concise, impactful messages. You focus on specific metrics, recent news, and concrete value propositions. Your messages are short, direct, and designed for busy executives. You always cite your sources and include specific numbers or statistics."},
+                        {"role": "system", "content": "You are a data-driven sales professional who creates concise, impactful messages. You focus on specific metrics, recent news, and concrete value propositions. Your messages are short, direct, and designed for busy executives. You always cite sources separately and make realistic claims based on actual capabilities."},
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=300,  # Reduced from 500 to encourage brevity
