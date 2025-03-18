@@ -1152,62 +1152,87 @@ def extension_login_form():
 @login_required
 def company_info():
     if request.method == 'GET':
-        with get_db_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            cursor.execute(
-                "SELECT name, description, target_industries FROM user_companies WHERE user_id = %s",
-                (current_user.id,)
-            )
-            company = cursor.fetchone()
-            cursor.close()
-            
-            return jsonify({
-                'status': 'success',
-                'company': company
-            })
-    
-    else:  # POST
-        data = request.json
-        if not data or not data.get('name') or not data.get('description'):
-            return jsonify({
-                'status': 'error',
-                'message': 'Company name and description are required'
-            }), 400
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute('''
-                    INSERT INTO user_companies (user_id, name, description, target_industries)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (user_id)
-                    DO UPDATE SET
-                        name = EXCLUDED.name,
-                        description = EXCLUDED.description,
-                        target_industries = EXCLUDED.target_industries,
-                        updated_at = CURRENT_TIMESTAMP
-                    RETURNING id
-                ''', (
-                    current_user.id,
-                    data['name'],
-                    data['description'],
-                    data.get('target_industries', '')
-                ))
-                
-                company_id = cursor.fetchone()[0]
-                conn.commit()
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute(
+                    "SELECT name, description, target_industries FROM user_companies WHERE user_id = %s",
+                    (current_user.id,)
+                )
+                company = cursor.fetchone()
+                cursor.close()
                 
                 return jsonify({
                     'status': 'success',
-                    'message': 'Company information saved successfully',
-                    'id': company_id
+                    'company': company
                 })
+        except Exception as e:
+            logger.error(f"Error fetching company info: {str(e)}", exc_info=True)
+            return jsonify({
+                'status': 'error',
+                'message': 'Error fetching company information'
+            }), 500
+    
+    else:  # POST
+        try:
+            data = request.json
+            logger.info(f"Received company info update request: {data}")
             
-            except Exception as e:
-                print(f"Error saving company info: {e}")
+            if not data:
+                logger.warning("No JSON data received in company info update")
                 return jsonify({
                     'status': 'error',
-                    'message': 'Error saving company information'
-                }), 500
-            finally:
-                cursor.close()
+                    'message': 'No data provided'
+                }), 400
+                
+            if not data.get('name') or not data.get('description'):
+                logger.warning(f"Missing required fields in company info update: {data}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Company name and description are required'
+                }), 400
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                try:
+                    logger.info(f"Updating company info for user {current_user.id}")
+                    cursor.execute('''
+                        INSERT INTO user_companies (user_id, name, description, target_industries)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (user_id)
+                        DO UPDATE SET
+                            name = EXCLUDED.name,
+                            description = EXCLUDED.description,
+                            target_industries = EXCLUDED.target_industries,
+                            updated_at = CURRENT_TIMESTAMP
+                        RETURNING id
+                    ''', (
+                        current_user.id,
+                        data['name'],
+                        data['description'],
+                        data.get('target_industries', '')
+                    ))
+                    company_id = cursor.fetchone()[0]
+                    conn.commit()
+                    cursor.close()
+                    
+                    logger.info(f"Successfully updated company info for user {current_user.id}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Company information saved successfully',
+                        'company_id': company_id
+                    })
+                except Exception as e:
+                    conn.rollback()
+                    logger.error(f"Database error while saving company info: {str(e)}", exc_info=True)
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Error saving company information to database'
+                    }), 500
+                
+        except Exception as e:
+            logger.error(f"Error processing company info update: {str(e)}", exc_info=True)
+            return jsonify({
+                'status': 'error',
+                'message': 'Error processing company information update'
+            }), 500
