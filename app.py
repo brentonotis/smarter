@@ -73,7 +73,8 @@ redis_pool = redis.ConnectionPool.from_url(
     max_connections=5,
     retry_on_timeout=True,
     health_check_interval=30,
-    ssl_cert_reqs=None  # Disable SSL certificate verification
+    ssl_cert_reqs=None,  # Disable SSL certificate verification
+    ssl=True if redis_url.startswith('rediss://') else False  # Enable SSL for rediss:// URLs
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
 
