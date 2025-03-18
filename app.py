@@ -6,7 +6,7 @@ import openai
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from urllib.parse import urlparse, url_parse
+from urllib.parse import urlparse
 import time
 from collections import defaultdict
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -745,7 +745,7 @@ def login():
                     login_attempts[email] = []
                     
                     next_page = request.args.get('next')
-                    if not next_page or url_parse(next_page).netloc != '':
+                    if not next_page or urlparse(next_page).netloc != '':
                         next_page = url_for('index')
                     
                     if request.is_xhr:
