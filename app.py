@@ -6,7 +6,7 @@ import openai
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from urllib.parse import urlparse
+from urllib.parse import urlparse, url_parse
 import time
 from collections import defaultdict
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -699,3 +699,117 @@ def company_info():
                 'status': 'error',
                 'message': 'Error processing company information update'
             }), 500
+
+@app.route('/')
+@login_required
+def index():
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Error rendering index page: {str(e)}", exc_info=True)
+        return render_template('500.html'), 500
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+        
+    if request.method == 'POST':
+        try:
+            email = request.form.get('email')
+            password = request.form.get('password')
+            
+            if not email or not password:
+                flash('Email and password are required', 'error')
+                return render_template('login.html')
+            
+            # Check if login is allowed
+            if not is_login_allowed(email):
+                remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+                flash(f'Too many login attempts. Please try again in {remaining_time//60} minutes.', 'error')
+                return render_template('login.html')
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user_data = cursor.fetchone()
+                cursor.close()
+                
+                if user_data and check_password_hash(user_data['password_hash'], password):
+                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                    login_user(user, remember=True)
+                    
+                    # Clear login attempts on successful login
+                    login_attempts[email] = []
+                    
+                    next_page = request.args.get('next')
+                    if not next_page or url_parse(next_page).netloc != '':
+                        next_page = url_for('index')
+                    return redirect(next_page)
+                
+                # Record failed attempt
+                login_attempts[email].append(time.time())
+                flash('Invalid email or password', 'error')
+                
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}", exc_info=True)
+            flash('An error occurred during login. Please try again.', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+        
+    if request.method == 'POST':
+        try:
+            email = request.form.get('email')
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
+            
+            if not email or not password or not confirm_password:
+                flash('All fields are required', 'error')
+                return render_template('register.html')
+            
+            if password != confirm_password:
+                flash('Passwords do not match', 'error')
+                return render_template('register.html')
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Check if user already exists
+                cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+                if cursor.fetchone():
+                    flash('Email already registered', 'error')
+                    return render_template('register.html')
+                
+                # Create new user
+                password_hash = generate_password_hash(password)
+                cursor.execute(
+                    "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+                    (email, password_hash)
+                )
+                user_id = cursor.fetchone()[0]
+                conn.commit()
+                cursor.close()
+                
+                # Log in the new user
+                user = User(user_id, email, password_hash)
+                login_user(user)
+                
+                flash('Registration successful!', 'success')
+                return redirect(url_for('index'))
+                
+        except Exception as e:
+            logger.error(f"Registration error: {str(e)}", exc_info=True)
+            flash('An error occurred during registration. Please try again.', 'error')
+    
+    return render_template('register.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
