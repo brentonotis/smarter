@@ -491,10 +491,18 @@ def logout():
         # Logout the user
         logout_user()
         
-        # Clear any cookies
+        # Create response with redirect
         response = redirect(url_for('login'))
+        
+        # Clear all cookies
         response.delete_cookie('smarter_session')
         response.delete_cookie('session')
+        response.delete_cookie('remember_token')
+        
+        # Add cache control headers to prevent caching
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
         
         # Add a success message
         flash('You have been logged out successfully.', 'info')
@@ -502,6 +510,7 @@ def logout():
         return response
     except Exception as e:
         logger.error(f"Logout error: {e}")
+        # If there's an error, still try to redirect to login
         return redirect(url_for('login'))
 
 @app.route('/')
@@ -514,7 +523,14 @@ def index():
                 'status': 'error',
                 'message': 'Not authenticated'
             }), 401
-        return redirect(url_for('login'))
+        # Clear any existing session data
+        session.clear()
+        # Add cache control headers to prevent caching
+        response = redirect(url_for('login'))
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     
     # If it's an AJAX request, return JSON
     if request.headers.get('Accept') == 'application/json':
@@ -817,36 +833,27 @@ def add_security_headers(response):
     )
     return response
 
-# Configure static files
+# Configure static file serving
 app.static_folder = 'static'
 app.static_url_path = '/static'
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     try:
-        # Add cache control headers
         response = send_from_directory(app.static_folder, filename)
         response.headers['Cache-Control'] = 'public, max-age=31536000'
         return response
     except Exception as e:
-        logger.error(f"Static file error: {e}")
-        # Return a proper 404 response instead of empty string
+        app.logger.error(f"Error serving static file {filename}: {str(e)}")
         return jsonify({'error': 'File not found'}), 404
 
 @app.route('/favicon.ico')
 def favicon():
     try:
-        response = send_from_directory(
-            os.path.join(app.root_path, 'static'),
-            'favicon.ico',
-            mimetype='image/vnd.microsoft.icon'
-        )
-        response.headers['Cache-Control'] = 'public, max-age=31536000'
-        return response
+        return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
     except Exception as e:
-        logger.error(f"Favicon error: {e}")
-        # Return a proper 404 response
-        return jsonify({'error': 'Favicon not found'}), 404
+        app.logger.error(f"Error serving favicon: {str(e)}")
+        return '', 204
 
 # Add error handler for 404
 @app.errorhandler(404)
