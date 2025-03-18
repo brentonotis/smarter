@@ -45,67 +45,66 @@ app.config['NEWS_API_DAILY_LIMIT'] = 95
 
 def init_db():
     """Initialize database tables"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create tables if they don't exist
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_companies (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
-            name VARCHAR(255) NOT NULL,
-            description TEXT NOT NULL,
-            target_industries VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id)
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS targets (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
-            name VARCHAR(255) NOT NULL,
-            type VARCHAR(50) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS snippets (
-            id SERIAL PRIMARY KEY,
-            target_id INTEGER REFERENCES targets(id),
-            content TEXT NOT NULL,
-            source_data JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS api_usage (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
-            date DATE NOT NULL,
-            openai_tokens_used INTEGER DEFAULT 0,
-            news_api_calls INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, date)
-        )
-    ''')
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Create tables if they don't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_companies (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                name VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                target_industries VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id)
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS targets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS snippets (
+                id SERIAL PRIMARY KEY,
+                target_id INTEGER REFERENCES targets(id),
+                content TEXT NOT NULL,
+                source_data JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_usage (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                date DATE NOT NULL,
+                openai_tokens_used INTEGER DEFAULT 0,
+                news_api_calls INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, date)
+            )
+        ''')
+        
+        conn.commit()
+        cursor.close()
 
 # Initialize database tables when the app starts
 init_db()
