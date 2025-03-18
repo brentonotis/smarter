@@ -360,9 +360,24 @@ def check_api_limits(user_id):
         
         cursor.close()
         
+        if not usage:
+            # If no usage record exists for today, create one
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO api_usage (user_id, date, openai_tokens_used, news_api_calls)
+                    VALUES (%s, %s, 0, 0)
+                    RETURNING openai_tokens_used, news_api_calls
+                """, (user_id, today))
+                usage = cursor.fetchone()
+                conn.commit()
+                cursor.close()
+        
         return {
-            "openai_limit_reached": usage['openai_tokens_used'] >= app.config['OPENAI_DAILY_LIMIT'] if usage else False,
-            "news_api_limit_reached": usage['news_api_calls'] >= app.config['NEWS_API_DAILY_LIMIT'] if usage else False
+            "openai_tokens_used": usage['openai_tokens_used'],
+            "news_api_calls": usage['news_api_calls'],
+            "openai_limit_reached": usage['openai_tokens_used'] >= app.config['OPENAI_DAILY_LIMIT'],
+            "news_api_limit_reached": usage['news_api_calls'] >= app.config['NEWS_API_DAILY_LIMIT']
         }
 
 # Custom error handler
@@ -990,6 +1005,16 @@ def generate_snippets():
                     temperature=0.7
                 )
                 
+                # Update OpenAI token usage
+                tokens_used = response.usage.total_tokens
+                today = datetime.now().date()
+                cursor.execute("""
+                    INSERT INTO api_usage (user_id, date, openai_tokens_used)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (user_id, date)
+                    DO UPDATE SET openai_tokens_used = api_usage.openai_tokens_used + %s
+                """, (current_user.id, today, tokens_used, tokens_used))
+                
                 snippet = response.choices[0].message.content.strip()
                 
                 # Format the source citation with date and link
@@ -1032,13 +1057,17 @@ def generate_snippets():
 @login_required
 def get_api_status():
     try:
+        # Force cache invalidation for real-time updates
+        cache_key = f"check_api_limits:{current_user.id}"
+        redis_client.delete(cache_key)
+        
         limits = check_api_limits(current_user.id)
         return jsonify({
-            'openai_tokens_used': limits.get('openai_tokens_used', 0),
+            'openai_tokens_used': limits['openai_tokens_used'],
             'openai_daily_limit': app.config['OPENAI_DAILY_LIMIT'],
-            'news_api_calls': limits.get('news_api_calls', 0),
+            'news_api_calls': limits['news_api_calls'],
             'news_api_daily_limit': app.config['NEWS_API_DAILY_LIMIT'],
-            'within_limits': not (limits.get('openai_limit_reached', False) or limits.get('news_api_limit_reached', False))
+            'within_limits': not (limits['openai_limit_reached'] or limits['news_api_limit_reached'])
         })
     except Exception as e:
         logger.error(f"Error getting API status: {str(e)}", exc_info=True)
