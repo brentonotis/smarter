@@ -609,6 +609,7 @@ def extension_login():
                 'message': 'Invalid CSRF token'
             }), 400
         
+        # Get form data
         email = request.form.get('email')
         password = request.form.get('password')
         
