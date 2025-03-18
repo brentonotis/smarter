@@ -127,7 +127,7 @@ CORS(app, resources={
 })
 
 # Add session configuration
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # Only require HTTPS in production
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_DOMAIN'] = None
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -1029,12 +1029,21 @@ def analyze_page():
 @app.route('/api/extension/login', methods=['POST'])
 def extension_login():
     try:
+        logger.info("Extension login attempt received")
         email = request.form.get('email')
         password = request.form.get('password')
+        
+        if not email or not password:
+            logger.warning("Missing email or password in login attempt")
+            return jsonify({
+                'status': 'error',
+                'message': 'Email and password are required'
+            }), 400
         
         # Check if login is allowed
         if not is_login_allowed(email):
             remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
+            logger.warning(f"Too many login attempts for email: {email}")
             return jsonify({
                 'status': 'error',
                 'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
@@ -1054,6 +1063,7 @@ def extension_login():
                 # Clear login attempts on successful login
                 login_attempts[email] = []
                 
+                logger.info(f"Successful login for user: {email}")
                 return jsonify({
                     'status': 'success',
                     'message': 'Login successful',
@@ -1065,6 +1075,7 @@ def extension_login():
             
             # Record failed attempt
             login_attempts[email].append(time.time())
+            logger.warning(f"Failed login attempt for email: {email}")
             
             return jsonify({
                 'status': 'error',
@@ -1072,7 +1083,7 @@ def extension_login():
             }), 401
             
     except Exception as e:
-        logger.error(f"Extension login error: {e}")
+        logger.error(f"Extension login error: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': 'An error occurred during login. Please try again.'
