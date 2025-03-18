@@ -99,7 +99,8 @@ function createPanel() {
           'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'include',
-        mode: 'cors'
+        mode: 'cors',
+        referrerPolicy: 'no-referrer'
       });
       
       if (!response.ok) {

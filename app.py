@@ -117,7 +117,7 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 # Configure CORS
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com"],
+        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com", "*"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
         "supports_credentials": True,
@@ -401,15 +401,21 @@ def add_security_headers(response):
     # Get the origin from the request
     origin = request.headers.get('Origin')
     
-    # Only set CORS headers if there's an origin
-    if origin and (origin in ["https://smarter-865bc5a924ea.herokuapp.com", "https://www.linkedin.com"] or 
-                  origin.startswith("chrome-extension://")):
-        response.headers['Access-Control-Allow-Origin'] = origin
+    # Always allow extension requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        else:
+            response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
         response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
     
+    # Add Cross-Origin-Opener-Policy header
+    response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
+    
+    # Other security headers
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'ALLOWALL'
