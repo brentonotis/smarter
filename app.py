@@ -589,6 +589,26 @@ def analyze_page():
 def extension_login():
     try:
         logger.info("Extension login attempt received")
+        
+        # Get CSRF token from headers
+        csrf_token = request.headers.get('X-CSRFToken')
+        if not csrf_token:
+            logger.warning("Missing CSRF token in login attempt")
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing CSRF token'
+            }), 400
+        
+        # Validate CSRF token
+        try:
+            csrf.validate_csrf(csrf_token)
+        except Exception as e:
+            logger.warning(f"Invalid CSRF token: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid CSRF token'
+            }), 400
+        
         email = request.form.get('email')
         password = request.form.get('password')
         

@@ -246,12 +246,17 @@ function createPanel() {
             referrerPolicy: 'no-referrer'
           });
           
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+          let data;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            throw new Error('Server returned non-JSON response');
           }
           
-          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+          }
           
           if (data.status === 'success' && data.user && data.user.email) {
             // Store the session data
