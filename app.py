@@ -112,7 +112,7 @@ def init_db():
         raise
 
 # Initialize database tables when the app starts
-init_db()
+# init_db()  # Remove this line
 
 # Update CORS configuration
 CORS(app, resources={
@@ -284,14 +284,17 @@ def init_app():
     schedule_cleanup()
 
 # Initialize the app when it starts
-with app.app_context():
-    try:
-        init_db_pool()  # Initialize the connection pool first
-        init_db()       # Then initialize the database tables
-        schedule_cleanup()
-    except Exception as e:
-        logger.error(f"Application initialization error: {e}")
-        raise
+if __name__ == '__main__':
+    # Initialize the app when it starts
+    with app.app_context():
+        try:
+            init_db_pool()  # Initialize the connection pool first
+            init_db()       # Then initialize the database tables
+            schedule_cleanup()
+        except Exception as e:
+            logger.error(f"Application initialization error: {e}")
+            raise
+    app.run(debug=True)
 
 @app.teardown_appcontext
 def teardown_db(exception):
@@ -1160,7 +1163,3 @@ def company_info():
                 }), 500
             finally:
                 cursor.close()
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
