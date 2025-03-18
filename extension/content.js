@@ -23,6 +23,7 @@ function createPanel() {
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
+    pointer-events: auto !important;
   `;
 
   const header = document.createElement('div');
@@ -65,16 +66,17 @@ function createPanel() {
   content.style.cssText = `
     flex: 1 !important;
     border-radius: 0 0 8px 8px !important;
-    overflow: hidden !important;
+    overflow: auto !important;
     padding: 20px !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: flex-start !important;
     position: relative !important;
     isolation: isolate !important;
     contain: content !important;
     background: white !important;
+    pointer-events: auto !important;
   `;
   
   const loginButton = document.createElement('button');
@@ -210,6 +212,14 @@ function createPanel() {
       newForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        const errorDiv = document.getElementById('errorMessage');
+        const loadingDiv = document.getElementById('loadingMessage');
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        
+        errorDiv.style.display = 'none';
+        loadingDiv.style.display = 'block';
+        submitButton.disabled = true;
+        
         const formData = new FormData(newForm);
         try {
           const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
@@ -221,7 +231,8 @@ function createPanel() {
               'X-CSRFToken': document.getElementById('csrf_token').value
             },
             credentials: 'include',
-            mode: 'cors'
+            mode: 'cors',
+            referrerPolicy: 'no-referrer'
           });
           
           if (!response.ok) {
@@ -262,18 +273,16 @@ function createPanel() {
               });
             });
           } else {
-            // Show error message from server
-            const errorDiv = document.createElement('div');
-            errorDiv.style.cssText = 'color: red; margin-top: 10px; text-align: center;';
             errorDiv.textContent = data.message || 'Login failed. Please try again.';
-            newForm.appendChild(errorDiv);
+            errorDiv.style.display = 'block';
           }
         } catch (error) {
           console.error('Login error:', error);
-          const errorDiv = document.createElement('div');
-          errorDiv.style.cssText = 'color: red; margin-top: 10px; text-align: center;';
-          errorDiv.textContent = 'An error occurred. Please try again.';
-          newForm.appendChild(errorDiv);
+          errorDiv.textContent = 'An error occurred during login. Please try again.';
+          errorDiv.style.display = 'block';
+        } finally {
+          loadingDiv.style.display = 'none';
+          submitButton.disabled = false;
         }
       });
     } catch (error) {
