@@ -446,6 +446,15 @@ def is_login_allowed(email):
 def login():
     # If user is already logged in, redirect to index
     if current_user.is_authenticated:
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({
+                'status': 'success',
+                'message': 'Already logged in',
+                'user': {
+                    'email': current_user.email,
+                    'id': current_user.id
+                }
+            })
         return redirect(url_for('index'))
     
     # Clear any existing session data
@@ -454,7 +463,6 @@ def login():
     form = FlaskForm()
     if request.method == 'POST':
         try:
-            # Always treat as AJAX request for extension
             email = request.form.get('email')
             password = request.form.get('password')
             
@@ -504,11 +512,12 @@ def login():
                 'message': 'An error occurred during login. Please try again.'
             }), 500
     
-    # GET request
-    if request.headers.get('Accept') == 'application/json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    # GET request - return the appropriate format based on Accept header
+    if request.headers.get('Accept') == 'application/json':
         return jsonify({
             'status': 'success',
-            'html': render_template('extension_login.html', form=form)
+            'html': render_template('extension_login.html', form=form),
+            'csrf_token': form.csrf_token.current_token
         })
     return render_template('login.html', form=form)
 
