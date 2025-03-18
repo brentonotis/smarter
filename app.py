@@ -43,7 +43,7 @@ app.logger.addHandler(handler)
 
 def is_xhr():
     """Check if the request is an AJAX request"""
-    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept') == 'application/json'
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -833,3 +833,83 @@ def is_login_allowed(email):
     login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
     # Check if number of recent attempts exceeds limit
     return len(login_attempts[email]) < MAX_LOGIN_ATTEMPTS
+
+@app.route('/api/generate', methods=['POST'])
+@login_required
+def generate_snippets():
+    try:
+        data = request.json
+        if not data or 'targets' not in data or 'userCompany' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing required data'
+            }), 400
+
+        targets = data['targets']
+        user_company = data['userCompany']
+
+        # Save targets to database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            results = []
+            
+            for target in targets:
+                # Insert target
+                cursor.execute(
+                    "INSERT INTO targets (user_id, name, type) VALUES (%s, %s, %s) RETURNING id",
+                    (current_user.id, target['name'], target['type'])
+                )
+                target_id = cursor.fetchone()[0]
+                
+                # Generate snippet using OpenAI
+                prompt = f"""Generate a personalized outreach message for {target['name']} ({target['type']}) from {user_company['name']}.
+                
+                Company Information:
+                Name: {user_company['name']}
+                Description: {user_company['description']}
+                Target Industries: {user_company['target_industries']}
+                
+                Target:
+                Name: {target['name']}
+                Type: {target['type']}
+                
+                Generate a professional, personalized outreach message that highlights the value proposition and potential benefits for the target."""
+                
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a professional sales outreach specialist."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                
+                snippet = response.choices[0].message.content.strip()
+                
+                # Save snippet
+                cursor.execute(
+                    "INSERT INTO snippets (target_id, content) VALUES (%s, %s)",
+                    (target_id, snippet)
+                )
+                
+                results.append({
+                    'name': target['name'],
+                    'type': target['type'],
+                    'snippet': snippet
+                })
+            
+            conn.commit()
+            cursor.close()
+            
+            return jsonify({
+                'status': 'success',
+                'results': results
+            })
+            
+    except Exception as e:
+        logger.error(f"Generate snippets error: {str(e)}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while generating snippets.'
+        }), 500
