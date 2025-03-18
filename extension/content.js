@@ -209,100 +209,73 @@ function createPanel() {
       content.appendChild(newForm);
       
       // Add event listener to the form
-      newForm.addEventListener('submit', async (e) => {
+      newForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        const errorDiv = document.createElement('div');
-        errorDiv.id = 'errorMessage';
-        errorDiv.className = 'error-message';
-        errorDiv.style.cssText = 'color: #dc3545; margin-top: 10px; text-align: center; display: none;';
-        newForm.appendChild(errorDiv);
+        const form = e.target;
+        const submitButton = form.querySelector('#submit-button');
+        const errorMessage = form.querySelector('#error-message');
+        const loadingMessage = form.querySelector('#loading-message');
         
-        const loadingDiv = document.createElement('div');
-        loadingDiv.id = 'loadingMessage';
-        loadingDiv.className = 'loading-message';
-        loadingDiv.style.cssText = 'color: #007bff; margin-top: 10px; text-align: center; display: none;';
-        loadingDiv.textContent = 'Logging in...';
-        newForm.appendChild(loadingDiv);
-        
-        const submitButton = e.target.querySelector('button[type="submit"]');
-        
-        errorDiv.style.display = 'none';
-        loadingDiv.style.display = 'block';
+        // Disable submit button and show loading message
         submitButton.disabled = true;
+        errorMessage.style.display = 'none';
+        loadingMessage.style.display = 'block';
         
-        const formData = new FormData(newForm);
         try {
-          const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
-            method: 'POST',
-            body: formData,
-            headers: {
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
-              'X-CSRFToken': document.getElementById('csrf_token').value
-            },
-            credentials: 'include',
-            mode: 'cors',
-            referrerPolicy: 'no-referrer'
-          });
-          
-          let data;
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-          } else {
-            const text = await response.text();
-            console.error('Non-JSON response:', text);
-            throw new Error('Server returned non-JSON response');
-          }
-          
-          if (!response.ok) {
-            console.error('Login error response:', data);
-            throw new Error(data?.message || `HTTP error! status: ${response.status}`);
-          }
-          
-          if (data.status === 'success' && data.user && data.user.email) {
-            // Store the session data
-            chrome.storage.local.set({
-              'smarter_session': {
-                user: data.user,
-                timestamp: Date.now()
-              }
-            }, () => {
-              // Update the panel content to show logged-in state
-              content.innerHTML = `
-                <div style="text-align: center; padding: 20px;">
-                  <h3 style="margin-bottom: 15px;">Welcome to Smarter!</h3>
-                  <p style="color: #333; margin-bottom: 20px;">You are now logged in as ${data.user.email}</p>
-                  <button id="smarter-start-button" style="
-                    background: #007bff;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                  ">Start Using Smarter</button>
-                </div>
-              `;
-
-              // Add click handler for the start button
-              document.getElementById('smarter-start-button').addEventListener('click', () => {
-                // Initialize the main functionality
-                initializeSmarterFunctionality();
-              });
+            const formData = new FormData(form);
+            const csrfToken = form.querySelector('input[name="csrf_token"]').value;
+            
+            const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrfToken
+                },
+                credentials: 'include'
             });
-          } else {
-            errorDiv.textContent = data.message || 'Login failed. Please try again.';
-            errorDiv.style.display = 'block';
-          }
+            
+            let data;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                const text = await response.text();
+                console.error('Non-JSON response:', text);
+                throw new Error('Server returned non-JSON response');
+            }
+            
+            if (!response.ok) {
+                console.error('Login error response:', data);
+                throw new Error(data.message || `HTTP error! status: ${response.status}`);
+            }
+            
+            // Store session data
+            chrome.storage.local.set({
+                'smarter_session': data,
+                'last_login': new Date().toISOString()
+            }, function() {
+                console.log('Session data saved');
+            });
+            
+            // Update UI to show logged in state
+            document.body.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <h2>Successfully logged in!</h2>
+                    <p>You can now close this window and use the extension.</p>
+                </div>
+            `;
+            
         } catch (error) {
-          console.error('Login error:', error);
-          errorDiv.textContent = error.message || 'An error occurred during login. Please try again.';
-          errorDiv.style.display = 'block';
+            console.error('Login error:', error);
+            errorMessage.textContent = error.message || 'An error occurred during login. Please try again.';
+            errorMessage.style.display = 'block';
         } finally {
-          loadingDiv.style.display = 'none';
-          submitButton.disabled = false;
+            // Re-enable submit button and hide loading message
+            submitButton.disabled = false;
+            loadingMessage.style.display = 'none';
         }
       });
     } catch (error) {
