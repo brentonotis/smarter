@@ -1,28 +1,33 @@
 .api-status-bar {
     background: #f8f9fa;
     border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    margin: -1.5rem -15px 1.5rem -15px;  /* Negative margins to span full width */
+    border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
 .api-status-bar .card {
     border: none;
     background: transparent;
+    margin-bottom: 0;
 }
 
 .api-status-bar .card-body {
-    padding: 0.5rem 1rem;
+    padding: 0.25rem 1rem;
 }
 
 .api-status-bar #apiStatus {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: #6c757d;
 }
 
 .api-status-bar .btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.7rem;
+    margin-left: 0.5rem;
 }
 
 .api-status-bar .text-success {
