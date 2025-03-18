@@ -36,6 +36,29 @@ handler.setFormatter(logging.Formatter(
 ))
 logger.addHandler(handler)
 
+# Cleanup function for data structures
+def cleanup_data_structures():
+    current_time = time.time()
+    # Cleanup login attempts older than timeout
+    for email in list(login_attempts.keys()):
+        login_attempts[email] = [t for t in login_attempts[email] if current_time - t < LOGIN_TIMEOUT]
+        if not login_attempts[email]:
+            del login_attempts[email]
+    
+    # Cleanup IP request counts older than 1 hour
+    for ip in list(ip_request_counts.keys()):
+        if current_time - ip_last_reset[ip] > 3600:
+            del ip_request_counts[ip]
+            del ip_last_reset[ip]
+    
+    # Force garbage collection
+    gc.collect()
+
+# Schedule cleanup every hour
+def schedule_cleanup():
+    cleanup_data_structures()
+    threading.Timer(3600, schedule_cleanup).start()
+
 app = Flask(__name__)
 app.logger.addHandler(handler)  # Add the handler to Flask's logger
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this-in-production')
@@ -124,7 +147,8 @@ with app.app_context():
     try:
         init_db_pool()  # Initialize the connection pool first
         init_db()       # Then initialize the database tables
-        schedule_cleanup()
+        schedule_cleanup()  # Start the cleanup scheduler
+        logger.info("Application initialization completed successfully")
     except Exception as e:
         logger.error(f"Application initialization error: {e}")
         raise
