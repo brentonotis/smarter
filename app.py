@@ -67,12 +67,12 @@ app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
 redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 redis_pool = redis.ConnectionPool.from_url(
     redis_url,
-    ssl=True,
-    ssl_cert_reqs=None,
     decode_responses=True,
     socket_timeout=2,
     socket_connect_timeout=2,
-    max_connections=10
+    max_connections=10,
+    retry_on_timeout=True,
+    health_check_interval=30
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
 
@@ -111,7 +111,7 @@ def cache_with_timeout(timeout):
             finally:
                 # Ensure we're not keeping connections open
                 try:
-                    redis_client.connection_pool.disconnect()
+                    redis_client.connection_pool.reset()
                 except:
                     pass
         return decorated_function
