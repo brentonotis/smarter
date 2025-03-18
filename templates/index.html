@@ -2,15 +2,18 @@
 
 {% block content %}
     <div class="container my-5">
-        <h1 class="mb-4">Personalized Outreach Generator</h1>
-        
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">API Usage Status</h5>
-                <div id="apiStatus" class="text-muted">Loading...</div>
-                <button class="btn btn-sm btn-outline-secondary mt-2" id="refreshStatus">Refresh Status</button>
+        <div class="api-status-bar mb-3">
+            <div class="card">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div id="apiStatus" class="text-muted small">Loading...</div>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshStatus">Refresh</button>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <h1 class="mb-4">Personalized Outreach Generator</h1>
         
         <div class="card mb-4">
             <div class="card-body">
@@ -181,29 +184,29 @@
                     resultsContainer.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
                 });
             });
+
+            function updateApiStatus() {
+                fetch('/api/status', {
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        const statusDiv = document.getElementById('apiStatus');
+                        statusDiv.innerHTML = `
+                            <span class="me-3">OpenAI: ${data.openai_tokens_used}/${data.openai_daily_limit}</span>
+                            <span class="me-3">News API: ${data.news_api_calls}/${data.news_api_daily_limit}</span>
+                            <span class="text-${data.within_limits ? 'success' : 'danger'}">
+                                ${data.within_limits ? 'Within Limits' : 'Daily Limit Reached'}
+                            </span>
+                        `;
+                    });
+            }
+
+            document.getElementById('refreshStatus').addEventListener('click', updateApiStatus);
+            // Load status on page load
+            updateApiStatus();
         });
-
-        function updateApiStatus() {
-            fetch('/api/status', {
-                headers: {
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    const statusDiv = document.getElementById('apiStatus');
-                    statusDiv.innerHTML = `
-                        <div>OpenAI Tokens Today: ${data.openai_tokens_used} / ${data.openai_daily_limit}</div>
-                        <div>News API Calls Today: ${data.news_api_calls} / ${data.news_api_daily_limit}</div>
-                        <div class="text-${data.within_limits ? 'success' : 'danger'} mt-2">
-                            Status: ${data.within_limits ? 'Within Limits' : 'Daily Limit Reached'}
-                        </div>
-                    `;
-                });
-        }
-
-        document.getElementById('refreshStatus').addEventListener('click', updateApiStatus);
-        // Load status on page load
-        updateApiStatus();
     </script>
 {% endblock %}

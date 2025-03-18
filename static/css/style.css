@@ -1,0 +1,34 @@
+.api-status-bar {
+    background: #f8f9fa;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.api-status-bar .card {
+    border: none;
+    background: transparent;
+}
+
+.api-status-bar .card-body {
+    padding: 0.5rem 1rem;
+}
+
+.api-status-bar #apiStatus {
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.api-status-bar .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.api-status-bar .text-success {
+    color: #28a745 !important;
+}
+
+.api-status-bar .text-danger {
+    color: #dc3545 !important;
+} 
