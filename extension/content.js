@@ -204,7 +204,7 @@ function createPanel() {
       
       content.appendChild(newForm);
       
-      // Add click event listener to the submit button instead of form submit
+      // Add click event listener to the submit button
       submitButton.addEventListener('click', async function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -225,6 +225,7 @@ function createPanel() {
             // Log the form data being sent
             console.log('Sending login request with CSRF token:', csrfToken);
             
+            // Create form data and encode it properly
             const formData = new FormData(newForm);
             const urlEncodedData = new URLSearchParams(formData).toString();
             
