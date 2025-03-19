@@ -235,12 +235,11 @@ function createPanel() {
                     'Accept': 'application/json',
                     'Origin': chrome.runtime.getURL(''),
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': chrome.runtime.getURL('')
+                    'Referer': 'https://smarter-865bc5a924ea.herokuapp.com/'
                 },
                 credentials: 'include',
                 mode: 'cors',
-                cache: 'no-cache',
-                referrerPolicy: 'no-referrer'
+                cache: 'no-cache'
             });
             
             // Log the response status and headers
