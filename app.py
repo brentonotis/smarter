@@ -84,28 +84,29 @@ def handle_csrf_error(error):
     
     # Allow CSRF validation for extension requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        # For extension requests, we'll validate the token but ignore referrer
         try:
             csrf_token = request.headers.get('X-CSRFToken')
-            if csrf_token:
-                # Get the token from the session
-                session_token = session.get('csrf_token')
-                logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
-                if session_token and session_token == csrf_token:
-                    return None  # Continue with the request
-                else:
-                    logger.warning("Invalid CSRF token for extension request")
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Invalid CSRF token. Please try again.'
-                    }), 400
+            session_token = session.get('csrf_token')
+            
+            logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
+            
+            if csrf_token and session_token and csrf_token == session_token:
+                logger.info("CSRF tokens match, allowing request")
+                return None  # Continue with the request
+                
+            logger.warning("Invalid CSRF token for extension request")
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid CSRF token. Please try again.'
+            }), 400
+            
         except Exception as e:
-            logger.warning(f"Error validating CSRF token for extension request: {str(e)}")
+            logger.error(f"Error validating CSRF token for extension request: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'message': 'CSRF validation failed. Please try again.'
             }), 400
-        
+    
     return render_template('csrf_error.html', reason=str(error)), 400
 
 # Initialize Flask-Login
@@ -663,20 +664,13 @@ def extension_login():
             }), 400
         
         # Validate CSRF token
-        try:
-            session_token = session.get('csrf_token')
-            logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
-            if not session_token or session_token != csrf_token:
-                logger.warning("Invalid CSRF token")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid CSRF token'
-                }), 400
-        except Exception as e:
-            logger.warning(f"Error validating CSRF token: {str(e)}")
+        session_token = session.get('csrf_token')
+        logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
+        if not session_token or session_token != csrf_token:
+            logger.warning("Invalid CSRF token")
             return jsonify({
                 'status': 'error',
-                'message': 'CSRF validation failed'
+                'message': 'Invalid CSRF token'
             }), 400
         
         # Get form data
@@ -735,6 +729,7 @@ def extension_login():
                     'status': 'error',
                     'message': 'Invalid email or password'
                 }), 401
+                
         except Exception as db_error:
             logger.error(f"Database error during login: {str(db_error)}", exc_info=True)
             return jsonify({
