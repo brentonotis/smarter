@@ -363,7 +363,7 @@ def check_api_limits(user_id):
         if not usage:
             # If no usage record exists for today, create one
             with get_db_connection() as conn:
-                cursor = conn.cursor()
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
                 cursor.execute("""
                     INSERT INTO api_usage (user_id, date, openai_tokens_used, news_api_calls)
                     VALUES (%s, %s, 0, 0)
@@ -521,9 +521,15 @@ def fetch_company_news(company_name):
                 VALUES (%s, %s, 1)
                 ON CONFLICT (user_id, date)
                 DO UPDATE SET news_api_calls = api_usage.news_api_calls + 1
+                RETURNING news_api_calls
             """, (current_user.id, today))
+            updated_usage = cursor.fetchone()
             conn.commit()
             cursor.close()
+            
+            if not updated_usage:
+                logger.error(f"Failed to update API usage for user {current_user.id}")
+                return []
         
         # Make request to News API
         params = {
@@ -1054,7 +1060,16 @@ def generate_snippets():
                     VALUES (%s, %s, %s)
                     ON CONFLICT (user_id, date)
                     DO UPDATE SET openai_tokens_used = api_usage.openai_tokens_used + %s
+                    RETURNING openai_tokens_used
                 """, (current_user.id, today, tokens_used, tokens_used))
+                updated_usage = cursor.fetchone()
+                
+                if not updated_usage:
+                    logger.error(f"Failed to update OpenAI token usage for user {current_user.id}")
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to update API usage'
+                    }), 500
                 
                 snippet = response.choices[0].message.content.strip()
                 
