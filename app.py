@@ -64,8 +64,9 @@ def handle_csrf_error(error):
         try:
             csrf_token = request.headers.get('X-CSRFToken')
             if csrf_token:
-                # Use the correct method to validate the token
-                if csrf._get_token() == csrf_token:
+                # Get the token from the session
+                session_token = session.get('csrf_token')
+                if session_token and session_token == csrf_token:
                     return None  # Continue with the request
                 else:
                     logger.warning("Invalid CSRF token for extension request")
@@ -639,7 +640,7 @@ def extension_login():
     if request.method == 'OPTIONS':
         response = jsonify({'status': 'ok'})
         origin = request.headers.get('Origin')
-        if origin and origin.startswith('chrome-extension://'):
+        if origin and (origin.startswith('chrome-extension://') or origin == 'https://github.com'):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Origin, Authorization, Referer'
@@ -663,12 +664,18 @@ def extension_login():
         
         # Validate CSRF token
         try:
-            csrf.validate_csrf(csrf_token)
+            session_token = session.get('csrf_token')
+            if not session_token or session_token != csrf_token:
+                logger.warning("Invalid CSRF token")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid CSRF token'
+                }), 400
         except Exception as e:
-            logger.warning(f"Invalid CSRF token: {str(e)}")
+            logger.warning(f"Error validating CSRF token: {str(e)}")
             return jsonify({
                 'status': 'error',
-                'message': 'Invalid CSRF token'
+                'message': 'CSRF validation failed'
             }), 400
         
         # Get form data
@@ -759,7 +766,10 @@ def extension_login_form():
         # Generate a new CSRF token
         form = FlaskForm()
         csrf_token = form.csrf_token.current_token
-        logger.info("Generated new CSRF token")
+        
+        # Store the token in the session
+        session['csrf_token'] = csrf_token
+        logger.info("Generated and stored new CSRF token")
         
         # Render the template
         html = render_template('extension_login.html', form=form)
