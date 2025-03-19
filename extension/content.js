@@ -207,6 +207,7 @@ function createPanel() {
       // Add event listener to the form
       newForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        e.stopPropagation();
         
         const errorMessage = newForm.querySelector('#error-message');
         const loadingMessage = newForm.querySelector('#loading-message');
@@ -227,6 +228,7 @@ function createPanel() {
             const formData = new FormData(newForm);
             const urlEncodedData = new URLSearchParams(formData).toString();
             
+            // Always use the correct endpoint regardless of form action
             const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
                 method: 'POST',
                 body: urlEncodedData,
