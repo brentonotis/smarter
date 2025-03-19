@@ -17,7 +17,7 @@ import redis
 import functools
 import logging
 from logging.handlers import RotatingFileHandler
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from functools import wraps
 from flask_wtf import FlaskForm
 from flask_cors import CORS
@@ -61,6 +61,12 @@ app.config['SESSION_COOKIE_SAMESITE_STRICT'] = False  # Disable SameSite=Strict
 csrf = CSRFProtect(app)
 csrf.init_app(app)
 
+# Configure CSRF protection
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_SECRET_KEY'] = app.secret_key
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
+app.config['WTF_EXEMPT_METHODS'] = ['OPTIONS']  # Exempt OPTIONS requests from CSRF
+
 # Configure CORS
 CORS(app, 
      resources={
@@ -78,39 +84,35 @@ CORS(app,
      max_age=3600
 )
 
-# Add custom CSRF error handler
-@app.errorhandler(400)
+# Add a custom error handler for CSRF errors
+@app.errorhandler(CSRFError)
 def handle_csrf_error(error):
     logger.error(f"CSRF error: {str(error)}")
     logger.error(f"Request headers: {dict(request.headers)}")
     logger.error(f"Session data: {dict(session)}")
     
-    # Allow CSRF validation for extension requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        try:
-            csrf_token = request.headers.get('X-CSRFToken')
-            session_token = session.get('csrf_token')
-            
-            logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
-            
-            if csrf_token and session_token and csrf_token == session_token:
-                logger.info("CSRF tokens match, allowing request")
-                return None  # Continue with the request
-                
-            logger.warning("Invalid CSRF token for extension request")
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid CSRF token. Please try again.'
-            }), 400
-            
-        except Exception as e:
-            logger.error(f"Error validating CSRF token for extension request: {str(e)}")
-            return jsonify({
-                'status': 'error',
-                'message': 'CSRF validation failed. Please try again.'
-            }), 400
+        return jsonify({
+            'status': 'error',
+            'message': 'CSRF validation failed. Please try again.'
+        }), 400
     
     return render_template('csrf_error.html', reason=str(error)), 400
+
+# Add a custom error handler for 400 errors
+@app.errorhandler(400)
+def handle_400_error(error):
+    logger.error(f"400 error: {str(error)}")
+    logger.error(f"Request headers: {dict(request.headers)}")
+    logger.error(f"Session data: {dict(session)}")
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'status': 'error',
+            'message': str(error)
+        }), 400
+    
+    return render_template('error.html', error=str(error)), 400
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -661,111 +663,78 @@ def analyze_page():
             'message': 'An error occurred during analysis.'
         }), 500
 
-@app.route('/api/extension/login', methods=['POST', 'OPTIONS'])
+@app.route('/extension_login', methods=['POST', 'OPTIONS'])
 def extension_login():
-    # Handle preflight request
     if request.method == 'OPTIONS':
-        response = jsonify({'status': 'ok'})
-        origin = request.headers.get('Origin')
-        if origin and (origin.startswith('chrome-extension://') or origin == 'https://github.com'):
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Origin, Authorization, Referer'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Max-Age'] = '3600'
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
 
+    logger.info("Extension login attempt received")
+    logger.info(f"Request headers: {dict(request.headers)}")
+    logger.info(f"Session data: {dict(session)}")
+    logger.info(f"Form data: {dict(request.form)}")
+
     try:
-        logger.info("Extension login attempt received")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        logger.info(f"Session data: {dict(session)}")
-        logger.info(f"Request form data: {dict(request.form)}")
-        
-        # Get CSRF token from headers
+        # Validate CSRF token
         csrf_token = request.headers.get('X-CSRFToken')
         if not csrf_token:
-            logger.warning("Missing CSRF token in login attempt")
+            logger.error("Missing CSRF token in request")
             return jsonify({
                 'status': 'error',
-                'message': 'Missing CSRF token'
+                'message': 'Missing CSRF token. Please try again.'
             }), 400
-        
-        # Validate CSRF token
-        session_token = session.get('csrf_token')
-        logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
-        if not session_token or session_token != csrf_token:
-            logger.warning("Invalid CSRF token")
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid CSRF token'
-            }), 400
-        
+
         # Get form data
         email = request.form.get('email')
         password = request.form.get('password')
         
         if not email or not password:
-            logger.warning("Missing email or password in login attempt")
+            logger.error("Missing email or password")
             return jsonify({
                 'status': 'error',
-                'message': 'Email and password are required'
+                'message': 'Email and password are required.'
             }), 400
-        
-        # Check if login is allowed
-        if not is_login_allowed(email):
-            remaining_time = int(LOGIN_TIMEOUT - (time.time() - login_attempts[email][0]))
-            logger.warning(f"Too many login attempts for email: {email}")
-            return jsonify({
-                'status': 'error',
-                'message': f'Too many login attempts. Please try again in {remaining_time//60} minutes.'
-            }), 429
-        
-        try:
-            with get_db_connection() as conn:
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                user_data = cursor.fetchone()
-                cursor.close()
-                
-                if user_data and check_password_hash(user_data['password_hash'], password):
-                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                    login_user(user, remember=True)  # Enable remember me
-                    session.permanent = True
-                    session.modified = True  # Ensure session is saved
-                    
-                    # Clear login attempts on successful login
-                    login_attempts[email] = []
-                    
-                    logger.info(f"Successful login for user: {email}")
-                    response = jsonify({
-                        'status': 'success',
-                        'message': 'Login successful',
-                        'user': {
-                            'email': user.email,
-                            'id': user.id
-                        }
-                    })
-                    response.headers['Set-Cookie'] = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
-                    return response
-                
-                # Record failed attempt
-                login_attempts[email].append(time.time())
-                logger.warning(f"Failed login attempt for email: {email}")
-                
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Invalid email or password'
-                }), 401
-                
-        except Exception as db_error:
-            logger.error(f"Database error during login: {str(db_error)}", exc_info=True)
-            return jsonify({
-                'status': 'error',
-                'message': 'Database error during login'
-            }), 500
+
+        # Attempt login
+        user = User.query.filter_by(email=email).first()
+        if user and user.check_password(password):
+            login_user(user)
+            logger.info(f"User {email} logged in successfully")
             
+            # Set session data
+            session['user_id'] = user.id
+            session['email'] = user.email
+            session['csrf_token'] = generate_csrf()
+            
+            response = jsonify({
+                'status': 'success',
+                'message': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'email': user.email
+                }
+            })
+            
+            # Set CORS headers
+            response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
+            
+            return response
+            
+        else:
+            logger.warning(f"Failed login attempt for email: {email}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid email or password.'
+            }), 401
+
     except Exception as e:
-        logger.error(f"Extension login error: {str(e)}", exc_info=True)
+        logger.error(f"Error during extension login: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': 'An error occurred during login. Please try again.'
