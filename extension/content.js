@@ -205,6 +205,21 @@ function createPanel() {
         font-size: 14px !important;
       `;
       newForm.appendChild(submitButton);
+
+      // Add error message div
+      const errorMessage = document.createElement('div');
+      errorMessage.id = 'error-message';
+      errorMessage.className = 'error-message';
+      errorMessage.style.cssText = 'color: #dc3545; margin-top: 10px; text-align: center; display: none;';
+      newForm.appendChild(errorMessage);
+
+      // Add loading message div
+      const loadingMessage = document.createElement('div');
+      loadingMessage.id = 'loading-message';
+      loadingMessage.className = 'loading-message';
+      loadingMessage.style.cssText = 'color: #007bff; margin-top: 10px; text-align: center; display: none;';
+      loadingMessage.textContent = 'Logging in...';
+      newForm.appendChild(loadingMessage);
       
       content.appendChild(newForm);
       
@@ -213,7 +228,7 @@ function createPanel() {
         e.preventDefault();
         
         const form = e.target;
-        const submitButton = form.querySelector('#submit-button');
+        const submitButton = form.querySelector('#smarter-submit-button');
         const errorMessage = form.querySelector('#error-message');
         const loadingMessage = form.querySelector('#loading-message');
         
@@ -234,7 +249,8 @@ function createPanel() {
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRFToken': csrfToken
                 },
-                credentials: 'include'
+                credentials: 'include',
+                mode: 'cors'
             });
             
             let data;
@@ -252,21 +268,43 @@ function createPanel() {
                 throw new Error(data.message || `HTTP error! status: ${response.status}`);
             }
             
-            // Store session data
-            chrome.storage.local.set({
-                'smarter_session': data,
-                'last_login': new Date().toISOString()
-            }, function() {
-                console.log('Session data saved');
-            });
-            
-            // Update UI to show logged in state
-            document.body.innerHTML = `
-                <div style="text-align: center; padding: 20px;">
-                    <h2>Successfully logged in!</h2>
-                    <p>You can now close this window and use the extension.</p>
-                </div>
-            `;
+            if (data.status === 'success' && data.user) {
+                // Store session data
+                chrome.storage.local.set({
+                    'smarter_session': {
+                        user: data.user,
+                        timestamp: Date.now()
+                    },
+                    'last_login': new Date().toISOString()
+                }, function() {
+                    console.log('Session data saved');
+                });
+                
+                // Update UI to show logged in state
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <h2>Successfully logged in!</h2>
+                        <p>You are now logged in as ${data.user.email}</p>
+                        <button id="smarter-start-button" style="
+                            background: #007bff;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            margin-top: 15px;
+                        ">Start Using Smarter</button>
+                    </div>
+                `;
+
+                // Add click handler for the start button
+                document.getElementById('smarter-start-button').addEventListener('click', () => {
+                    initializeSmarterFunctionality();
+                });
+            } else {
+                throw new Error(data.message || 'Login failed. Please try again.');
+            }
             
         } catch (error) {
             console.error('Login error:', error);
