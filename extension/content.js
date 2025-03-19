@@ -464,8 +464,27 @@ async function loadLoginForm() {
         }
 
         const data = await response.json();
+        
         if (data.status === 'success') {
-            return data.html;
+            // If user is already logged in, store session and return success message
+            if (data.user) {
+                chrome.storage.local.set({
+                    session: {
+                        user: data.user,
+                        timestamp: Date.now()
+                    }
+                }, function() {
+                    console.log('Session data stored');
+                });
+                return '<div class="success-message">You are already logged in! You can close this window and use the extension.</div>';
+            }
+            
+            // If we have HTML content, return it
+            if (data.html) {
+                return data.html;
+            }
+            
+            throw new Error('Invalid response format: missing HTML content');
         } else {
             throw new Error(data.message || 'Failed to load login form');
         }
