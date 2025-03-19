@@ -117,7 +117,7 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 # Configure CORS
 CORS(app, resources={
     r"/*": {
-        "origins": ["chrome-extension://*", "https://smarter-865bc5a924ea.herokuapp.com", "https://www.linkedin.com"],
+        "origins": ["chrome-extension://*", "https://smarter-865bc5a924ea.herokuapp.com"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
         "supports_credentials": True,

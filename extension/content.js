@@ -98,7 +98,8 @@ function createPanel() {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
+          'Origin': chrome.runtime.getURL('')
         },
         credentials: 'include',
         mode: 'cors',
