@@ -224,9 +224,11 @@ function createPanel() {
             console.log('Sending login request with CSRF token:', csrfToken);
             
             const formData = new FormData(newForm);
+            const urlEncodedData = new URLSearchParams(formData).toString();
+            
             const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
                 method: 'POST',
-                body: formData,
+                body: urlEncodedData,
                 headers: {
                     'X-CSRFToken': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',

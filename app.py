@@ -117,14 +117,13 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 # Configure CORS
 CORS(app, 
      resources={
-         r"/api/*": {
-             "origins": ["chrome-extension://*", "https://github.com"],  # Add both extension and GitHub origins
+         r"/*": {  # Changed from r"/api/*" to r"/*" to handle all routes
+             "origins": ["chrome-extension://*", "https://github.com"],
              "methods": ["GET", "POST", "OPTIONS"],
              "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin", "Authorization"],
              "supports_credentials": True,
              "expose_headers": ["Content-Type", "X-CSRFToken"],
-             "max_age": 3600,
-             "allow_credentials": True
+             "max_age": 3600
          }
      },
      supports_credentials=True,
@@ -412,7 +411,7 @@ def add_security_headers(response):
     origin = request.headers.get('Origin')
     
     # For extension endpoints, allow any origin with XMLHttpRequest header
-    if request.path.startswith('/api/extension/') and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         if origin:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
@@ -600,8 +599,20 @@ def analyze_page():
             'message': 'An error occurred during analysis.'
         }), 500
 
-@app.route('/api/extension/login', methods=['POST'])
+@app.route('/api/extension/login', methods=['POST', 'OPTIONS'])
 def extension_login():
+    # Handle preflight request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        origin = request.headers.get('Origin')
+        if origin and origin.startswith('chrome-extension://'):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Origin, Authorization'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+
     try:
         logger.info("Extension login attempt received")
         logger.info(f"Request headers: {dict(request.headers)}")
