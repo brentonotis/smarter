@@ -226,7 +226,7 @@ function createPanel() {
             const formData = new FormData(newForm);
             const urlEncodedData = new URLSearchParams(formData).toString();
             
-            const response = await fetch(newForm.action, {
+            const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
                 method: 'POST',
                 body: urlEncodedData,
                 headers: {
