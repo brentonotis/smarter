@@ -450,8 +450,7 @@ async function loadLoginForm() {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Origin': chrome.runtime.getURL(''),
-                'Cache-Control': 'no-cache'
+                'Origin': chrome.runtime.getURL('')
             },
             credentials: 'include',
             mode: 'cors',

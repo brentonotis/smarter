@@ -127,7 +127,6 @@ CORS(app,
          }
      },
      supports_credentials=True,
-     allow_credentials=True,
      expose_headers=["Content-Type", "X-CSRFToken"],
      max_age=3600
 )
