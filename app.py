@@ -1176,6 +1176,7 @@ def generate_snippets():
                 cursor.execute(
                     "INSERT INTO snippets (target_id, content, source_data) VALUES (%s, %s, %s)",
                     (target_id, snippet, json.dumps({'news_articles': news_articles}))
+                )
                 
                 results.append({
                     'name': target['name'],
