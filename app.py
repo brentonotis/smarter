@@ -64,15 +64,21 @@ def handle_csrf_error(error):
         try:
             csrf_token = request.headers.get('X-CSRFToken')
             if csrf_token:
-                csrf.validate_csrf(csrf_token)
-                return None  # Continue with the request
+                # Use the correct method to validate the token
+                if csrf._get_token() == csrf_token:
+                    return None  # Continue with the request
+                else:
+                    logger.warning("Invalid CSRF token for extension request")
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Invalid CSRF token. Please try again.'
+                    }), 400
         except Exception as e:
-            logger.warning(f"Invalid CSRF token for extension request: {str(e)}")
-        
-        return jsonify({
-            'status': 'error',
-            'message': 'CSRF validation failed. Please try again.'
-        }), 400
+            logger.warning(f"Error validating CSRF token for extension request: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': 'CSRF validation failed. Please try again.'
+            }), 400
         
     return render_template('csrf_error.html', reason=str(error)), 400
 
