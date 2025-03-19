@@ -451,12 +451,12 @@ async function loadLoginForm() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json',
                 'Origin': chrome.runtime.getURL(''),
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Referer': 'https://smarter-865bc5a924ea.herokuapp.com/'
             },
             credentials: 'include',
             mode: 'cors',
-            cache: 'no-cache',
-            referrerPolicy: 'no-referrer'
+            cache: 'no-cache'
         });
 
         if (!response.ok) {
