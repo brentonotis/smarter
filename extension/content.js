@@ -443,14 +443,13 @@ async function analyzeCurrentPage(url) {
 
 async function loadLoginForm() {
     try {
-        console.log('Loading login form...');
         const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login-form', {
             method: 'GET',
             headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Origin': chrome.runtime.getURL('')
+                'Accept': 'application/json',
+                'Origin': chrome.runtime.getURL(''),
+                'Content-Type': 'application/json'
             },
             credentials: 'include',
             mode: 'cors',
@@ -458,37 +457,18 @@ async function loadLoginForm() {
             referrerPolicy: 'no-referrer'
         });
 
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server error response:', errorText);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            const text = await response.text();
-            console.error('Non-JSON response:', text);
-            throw new Error('Server returned non-JSON response');
-        }
-
         const data = await response.json();
-        console.log('Response data:', data);
-
-        if (data.status === 'success' && data.user) {
-            // User is already logged in - return a success message
-            return '<div class="success-message">You are already logged in! You can close this window and use the extension.</div>';
+        if (data.status === 'success') {
+            return data.html;
+        } else {
+            throw new Error(data.message || 'Failed to load login form');
         }
-
-        if (!data.html) {
-            throw new Error('Invalid response format');
-        }
-
-        return data.html;
     } catch (error) {
-        console.error('Error loading login form:', error);
+        console.error('Detailed login form error:', error);
         throw error;
     }
 } 

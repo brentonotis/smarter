@@ -118,12 +118,13 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 CORS(app, 
      resources={
          r"/api/*": {
-             "origins": ["chrome-extension://*"],
+             "origins": ["chrome-extension://*", "https://github.com"],  # Add both extension and GitHub origins
              "methods": ["GET", "POST", "OPTIONS"],
-             "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin"],
+             "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin", "Authorization"],
              "supports_credentials": True,
              "expose_headers": ["Content-Type", "X-CSRFToken"],
-             "max_age": 3600
+             "max_age": 3600,
+             "allow_credentials": True
          }
      },
      supports_credentials=True,
@@ -418,6 +419,7 @@ def add_security_headers(response):
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
             response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
+            response.headers['Access-Control-Max-Age'] = '3600'
     
     # Add Cross-Origin-Opener-Policy header
     response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
