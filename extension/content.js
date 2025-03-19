@@ -130,6 +130,13 @@ function createPanel() {
       csrfInput.name = 'csrf_token';
       csrfInput.value = form.querySelector('input[name="csrf_token"]').value;
       newForm.appendChild(csrfInput);
+
+      // Add referrer input
+      const referrerInput = document.createElement('input');
+      referrerInput.type = 'hidden';
+      referrerInput.name = 'referrer';
+      referrerInput.value = 'https://smarter-865bc5a924ea.herokuapp.com/';
+      newForm.appendChild(referrerInput);
       
       // Add email field
       const emailGroup = document.createElement('div');
@@ -171,7 +178,7 @@ function createPanel() {
       
       // Add submit button
       const submitButton = document.createElement('button');
-      submitButton.type = 'button';
+      submitButton.type = 'submit';  // Changed back to 'submit' for native form submission
       submitButton.id = 'smarter-submit-button';
       submitButton.textContent = 'Login';
       submitButton.setAttribute('aria-label', 'Submit login form');
@@ -204,14 +211,13 @@ function createPanel() {
       
       content.appendChild(newForm);
       
-      // Add click event listener to the submit button
-      submitButton.addEventListener('click', async function(e) {
+      // Add form submit event listener
+      newForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        e.stopPropagation();
         
         const errorMessage = newForm.querySelector('#error-message');
         const loadingMessage = newForm.querySelector('#loading-message');
-        const submitButton = newForm.querySelector('button[type="button"]');
+        const submitButton = newForm.querySelector('button[type="submit"]');
         
         // Disable submit button and show loading message
         submitButton.disabled = true;
@@ -219,36 +225,23 @@ function createPanel() {
         errorMessage.style.display = 'none';
         
         try {
-            // Get CSRF token from the form
-            const csrfToken = newForm.querySelector('input[name="csrf_token"]').value;
-            
-            // Log the form data being sent
-            console.log('Sending login request with CSRF token:', csrfToken);
-            
-            // Create form data and encode it properly
+            // Get form data
             const formData = new FormData(newForm);
-            const urlEncodedData = new URLSearchParams(formData).toString();
             
-            // Always use the correct endpoint regardless of form action
-            const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
+            // Submit the form to the correct endpoint
+            const response = await fetch(newForm.action, {
                 method: 'POST',
-                body: urlEncodedData,
+                body: formData,
                 headers: {
-                    'X-CSRFToken': csrfToken,
+                    'X-CSRFToken': newForm.querySelector('input[name="csrf_token"]').value,
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
                     'Origin': chrome.runtime.getURL(''),
-                    'Content-Type': 'application/x-www-form-urlencoded',
                     'Referer': 'https://smarter-865bc5a924ea.herokuapp.com/'
                 },
                 credentials: 'include',
-                mode: 'cors',
-                cache: 'no-cache'
+                mode: 'cors'
             });
-            
-            // Log the response status and headers
-            console.log('Login response status:', response.status);
-            console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -256,15 +249,7 @@ function createPanel() {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                const text = await response.text();
-                console.error('Non-JSON response:', text);
-                throw new Error('Server returned non-JSON response');
-            }
-            
             const data = await response.json();
-            console.log('Login form response:', data);
             
             if (data.status === 'success') {
                 if (data.user) {
