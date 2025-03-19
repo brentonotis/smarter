@@ -478,6 +478,12 @@ def add_security_headers(response):
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
             response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
             response.headers['Access-Control-Max-Age'] = '3600'
+            
+            # Add detailed logging for extension requests
+            logger.info(f"=== Extension Response Headers for {request.path} ===")
+            logger.info(f"Request headers: {dict(request.headers)}")
+            logger.info(f"Response headers: {dict(response.headers)}")
+            logger.info(f"Session data: {dict(session)}")
     
     # Add Cross-Origin-Opener-Policy header
     response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
@@ -666,17 +672,24 @@ def analyze_page():
 @app.route('/extension_login', methods=['POST', 'OPTIONS'])
 def extension_login():
     if request.method == 'OPTIONS':
+        logger.info("=== Extension Login OPTIONS Request ===")
+        logger.info(f"Request headers: {dict(request.headers)}")
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
         response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
+        logger.info(f"OPTIONS response headers: {dict(response.headers)}")
         return response
 
-    logger.info("Extension login attempt received")
+    logger.info("=== Extension Login POST Request ===")
     logger.info(f"Request headers: {dict(request.headers)}")
     logger.info(f"Session data: {dict(session)}")
     logger.info(f"Form data: {dict(request.form)}")
+    logger.info(f"Origin: {request.headers.get('Origin')}")
+    logger.info(f"Cookie header: {request.headers.get('Cookie')}")
+    logger.info(f"CSRF token from header: {request.headers.get('X-CSRFToken')}")
+    logger.info(f"CSRF token from form: {request.form.get('csrf_token')}")
 
     try:
         # Validate CSRF token
@@ -724,6 +737,7 @@ def extension_login():
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
             
+            logger.info(f"Login response headers: {dict(response.headers)}")
             return response
             
         else:
@@ -734,7 +748,7 @@ def extension_login():
             }), 401
 
     except Exception as e:
-        logger.error(f"Error during extension login: {str(e)}")
+        logger.error(f"Error during extension login: {str(e)}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': 'An error occurred during login. Please try again.'
@@ -743,8 +757,14 @@ def extension_login():
 @app.route('/api/extension/login-form', methods=['GET'])
 def extension_login_form():
     try:
-        logger.info("Extension login form request received")
+        logger.info("=== Extension Login Form Request ===")
         logger.info(f"Request headers: {dict(request.headers)}")
+        logger.info(f"Session data: {dict(session)}")
+        logger.info(f"Origin: {request.headers.get('Origin')}")
+        logger.info(f"Cookie header: {request.headers.get('Cookie')}")
+        logger.info(f"User authenticated: {current_user.is_authenticated}")
+        if current_user.is_authenticated:
+            logger.info(f"User email: {current_user.email}")
         
         # If user is already logged in, return success
         if current_user.is_authenticated:
@@ -781,6 +801,7 @@ def extension_login_form():
         
         response = jsonify(response_data)
         response.headers['Set-Cookie'] = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+        logger.info(f"Response headers: {dict(response.headers)}")
         return response
     except Exception as e:
         logger.error(f"Extension login form error: {e}", exc_info=True)
@@ -1155,7 +1176,6 @@ def generate_snippets():
                 cursor.execute(
                     "INSERT INTO snippets (target_id, content, source_data) VALUES (%s, %s, %s)",
                     (target_id, snippet, json.dumps({'news_articles': news_articles}))
-                )
                 
                 results.append({
                     'name': target['name'],

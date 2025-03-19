@@ -113,7 +113,7 @@ function createPanel() {
       // Create a new form with the same fields
       const newForm = document.createElement('form');
       newForm.method = 'POST';
-      newForm.action = 'https://smarter-865bc5a924ea.herokuapp.com/api/extension/login';
+      newForm.action = 'https://smarter-865bc5a924ea.herokuapp.com/extension_login';
       newForm.id = 'smarter-login-form';
       newForm.setAttribute('role', 'form');
       newForm.setAttribute('aria-label', 'Login Form');
@@ -215,6 +215,10 @@ function createPanel() {
       newForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
+        console.log("=== Form Submission ===");
+        console.log("Form data:", new FormData(newForm));
+        console.log("CSRF token:", newForm.querySelector('input[name="csrf_token"]').value);
+        
         const errorMessage = newForm.querySelector('#error-message');
         const loadingMessage = newForm.querySelector('#loading-message');
         const submitButton = newForm.querySelector('button[type="submit"]');
@@ -227,6 +231,16 @@ function createPanel() {
         try {
             // Get form data
             const formData = new FormData(newForm);
+            
+            // Log request details
+            console.log("Request URL:", newForm.action);
+            console.log("Request headers:", {
+                'X-CSRFToken': newForm.querySelector('input[name="csrf_token"]').value,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'Origin': chrome.runtime.getURL(''),
+                'Referer': 'https://smarter-865bc5a924ea.herokuapp.com/'
+            });
             
             // Submit the form to the correct endpoint
             const response = await fetch(newForm.action, {
@@ -243,6 +257,9 @@ function createPanel() {
                 mode: 'cors'
             });
             
+            console.log("Login response status:", response.status);
+            console.log("Login response headers:", Object.fromEntries(response.headers.entries()));
+            
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Login error response:', errorText);
@@ -250,10 +267,12 @@ function createPanel() {
             }
             
             const data = await response.json();
+            console.log("Login response data:", data);
             
             if (data.status === 'success') {
                 if (data.user) {
                     // User is already logged in
+                    console.log("Login successful, storing session:", data.user);
                     chrome.storage.local.set({
                         session: {
                             user: data.user,
@@ -443,8 +462,18 @@ async function analyzeCurrentPage(url) {
   }
 }
 
+// Add cookie debugging
+chrome.cookies.getAll({domain: "smarter-865bc5a924ea.herokuapp.com"}, function(cookies) {
+    console.log("=== Current Cookies ===");
+    console.log("Cookies:", cookies);
+});
+
+// Add debugging to loadLoginForm function
 async function loadLoginForm() {
     try {
+        console.log("=== Loading Login Form ===");
+        console.log("Extension URL:", chrome.runtime.getURL(''));
+        
         const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login-form', {
             method: 'GET',
             headers: {
@@ -459,15 +488,20 @@ async function loadLoginForm() {
             cache: 'no-cache'
         });
 
+        console.log("Login form response status:", response.status);
+        console.log("Login form response headers:", Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
+        console.log("Login form response data:", data);
         
         if (data.status === 'success') {
             // If user is already logged in, store session and return success message
             if (data.user) {
+                console.log("User already logged in:", data.user);
                 chrome.storage.local.set({
                     session: {
                         user: data.user,
@@ -481,6 +515,7 @@ async function loadLoginForm() {
             
             // If we have HTML content, return it
             if (data.html) {
+                console.log("Received login form HTML");
                 return data.html;
             }
             
