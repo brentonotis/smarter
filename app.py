@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session, send_from_directory, g
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session, send_from_directory, g, make_response
 import requests
 import json
 import openai
@@ -53,6 +53,9 @@ app.config['SESSION_COOKIE_DOMAIN'] = 'smarter-865bc5a924ea.herokuapp.com'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_PATH'] = '/'
 app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
+app.config['SESSION_COOKIE_SAMESITE_FORCE'] = False  # Allow cross-origin requests
+app.config['SESSION_COOKIE_SAMESITE_LAX'] = False  # Disable SameSite=Lax
+app.config['SESSION_COOKIE_SAMESITE_STRICT'] = False  # Disable SameSite=Strict
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -364,6 +367,25 @@ def before_request():
     session.permanent = True  # Enable session timeout
     session.modified = True   # Reset the session timeout on each request
     
+    # Special handling for extension requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # Ensure session is properly initialized for extension requests
+        if 'csrf_token' not in session:
+            form = FlaskForm()
+            session['csrf_token'] = form.csrf_token.current_token
+            session.modified = True
+        
+        # Set CORS headers for extension requests
+        response = make_response()
+        origin = request.headers.get('Origin')
+        if origin and (origin.startswith('chrome-extension://') or origin == 'https://github.com'):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Origin, Authorization, Referer'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
+            response.headers['Access-Control-Max-Age'] = '3600'
+    
     # Ensure database pool is initialized
     if db_pool is None:
         try:
@@ -447,7 +469,7 @@ def add_security_headers(response):
     
     # For extension endpoints, allow any origin with XMLHttpRequest header
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        if origin:
+        if origin and (origin.startswith('chrome-extension://') or origin == 'https://github.com'):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
@@ -476,6 +498,11 @@ def add_security_headers(response):
         "base-uri 'self' *; "
         "trusted-types 'allow-duplicates' default jSecure highcharts dompurify goog#html"
     )
+    
+    # Ensure session cookie is properly set
+    if 'Set-Cookie' not in response.headers:
+        response.headers['Set-Cookie'] = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+    
     return response
 
 # Configure static file serving
