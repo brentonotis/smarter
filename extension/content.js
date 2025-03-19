@@ -260,24 +260,35 @@ function createPanel() {
             }
             
             const data = await response.json();
-            console.log('Login response data:', data);
+            console.log('Login form response:', data);
             
             if (data.status === 'success') {
-                // Store session data
-                chrome.storage.local.set({
-                    session: {
-                        user: data.user,
-                        timestamp: Date.now()
-                    }
-                }, function() {
-                    console.log('Session data stored');
-                });
+                if (data.user) {
+                    // User is already logged in
+                    chrome.storage.local.set({
+                        session: {
+                            user: data.user,
+                            timestamp: Date.now()
+                        }
+                    }, function() {
+                        console.log('Session data stored');
+                    });
+                    
+                    // Update UI to show success
+                    content.innerHTML = '<div class="success-message">You are already logged in! You can close this window and use the extension.</div>';
+                    return;
+                }
                 
-                // Update UI to show success
-                newForm.innerHTML = '<div class="success-message">Login successful! You can close this window and use the extension.</div>';
-            } else {
-                throw new Error(data.message || 'Login failed');
+                if (data.html) {
+                    // Insert the HTML content into the page
+                    content.innerHTML = data.html;
+                    return;
+                }
+                
+                throw new Error('Invalid response format: missing HTML content');
             }
+            
+            throw new Error(data.message || 'Failed to load login form');
         } catch (error) {
             console.error('Login error:', error);
             errorMessage.textContent = error.message || 'An error occurred during login. Please try again.';
