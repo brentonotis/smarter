@@ -60,6 +60,15 @@ def handle_csrf_error(error):
     
     # Allow CSRF validation for extension requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # For extension requests, we'll validate the token but ignore referrer
+        try:
+            csrf_token = request.headers.get('X-CSRFToken')
+            if csrf_token:
+                csrf.validate_csrf(csrf_token)
+                return None  # Continue with the request
+        except Exception as e:
+            logger.warning(f"Invalid CSRF token for extension request: {str(e)}")
+        
         return jsonify({
             'status': 'error',
             'message': 'CSRF validation failed. Please try again.'
