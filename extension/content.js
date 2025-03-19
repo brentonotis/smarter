@@ -232,11 +232,12 @@ function createPanel() {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
                     'Origin': chrome.runtime.getURL(''),
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 },
                 credentials: 'include',
                 mode: 'cors',
                 cache: 'no-cache',
-                redirect: 'follow'
+                referrerPolicy: 'no-referrer'
             });
             
             // Log the response status and headers
@@ -478,8 +479,8 @@ async function loadLoginForm() {
         console.log('Response data:', data);
 
         if (data.status === 'success' && data.user) {
-            // User is already logged in
-            throw new Error('Already logged in');
+            // User is already logged in - return a success message
+            return '<div class="success-message">You are already logged in! You can close this window and use the extension.</div>';
         }
 
         if (!data.html) {

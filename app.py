@@ -115,24 +115,22 @@ redis_pool = redis.ConnectionPool(
 redis_client = redis.Redis(connection_pool=redis_pool)
 
 # Configure CORS
-CORS(app, resources={
-    r"/api/extension/*": {
-        "origins": ["*"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
-        "supports_credentials": True,
-        "expose_headers": ["Content-Type", "X-CSRFToken"],
-        "max_age": 600
-    },
-    r"/*": {
-        "origins": ["chrome-extension://*", "https://smarter-865bc5a924ea.herokuapp.com"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
-        "supports_credentials": True,
-        "expose_headers": ["Content-Type", "X-CSRFToken"],
-        "max_age": 600
-    }
-})
+CORS(app, 
+     resources={
+         r"/api/*": {
+             "origins": ["chrome-extension://*"],
+             "methods": ["GET", "POST", "OPTIONS"],
+             "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin"],
+             "supports_credentials": True,
+             "expose_headers": ["Content-Type", "X-CSRFToken"],
+             "max_age": 3600
+         }
+     },
+     supports_credentials=True,
+     allow_credentials=True,
+     expose_headers=["Content-Type", "X-CSRFToken"],
+     max_age=3600
+)
 
 # Configure OpenAI
 openai.api_key = os.environ.get("OPENAI_API_KEY")
