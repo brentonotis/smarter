@@ -45,18 +45,42 @@ def is_xhr():
     """Check if the request is an AJAX request"""
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept') == 'application/json'
 
+# Configure session
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for Chrome extension
+app.config['SESSION_COOKIE_DOMAIN'] = 'smarter-865bc5a924ea.herokuapp.com'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_PATH'] = '/'
+app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
+
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
+csrf.init_app(app)
 
-# Exempt extension endpoints from referrer checking
-csrf._exempt_views.add('extension_login')
-csrf._exempt_views.add('extension_login_form')
+# Configure CORS
+CORS(app, 
+     resources={
+         r"/*": {
+             "origins": ["chrome-extension://*", "https://github.com"],
+             "methods": ["GET", "POST", "OPTIONS"],
+             "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin", "Authorization", "Referer"],
+             "supports_credentials": True,
+             "expose_headers": ["Content-Type", "X-CSRFToken"],
+             "max_age": 3600
+         }
+     },
+     supports_credentials=True,
+     expose_headers=["Content-Type", "X-CSRFToken"],
+     max_age=3600
+)
 
 # Add custom CSRF error handler
 @app.errorhandler(400)
 def handle_csrf_error(error):
     logger.error(f"CSRF error: {str(error)}")
     logger.error(f"Request headers: {dict(request.headers)}")
+    logger.error(f"Session data: {dict(session)}")
     
     # Allow CSRF validation for extension requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -66,6 +90,7 @@ def handle_csrf_error(error):
             if csrf_token:
                 # Get the token from the session
                 session_token = session.get('csrf_token')
+                logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
                 if session_token and session_token == csrf_token:
                     return None  # Continue with the request
                 else:
@@ -101,15 +126,6 @@ mail = Mail(app)
 
 # Initialize token serializer
 serializer = URLSafeTimedSerializer(app.secret_key)
-
-# Configure session
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for Chrome extension
-app.config['SESSION_COOKIE_DOMAIN'] = 'smarter-865bc5a924ea.herokuapp.com'
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_PATH'] = '/'
-app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
 
 # Configure API limits
 app.config['OPENAI_DAILY_LIMIT'] = 100000
@@ -148,23 +164,6 @@ redis_pool = redis.ConnectionPool(
     ssl_cert_reqs=None  # Disable SSL certificate verification
 )
 redis_client = redis.Redis(connection_pool=redis_pool)
-
-# Configure CORS
-CORS(app, 
-     resources={
-         r"/*": {
-             "origins": ["chrome-extension://*", "https://github.com"],
-             "methods": ["GET", "POST", "OPTIONS"],
-             "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin", "Authorization", "Referer"],
-             "supports_credentials": True,
-             "expose_headers": ["Content-Type", "X-CSRFToken"],
-             "max_age": 3600
-         }
-     },
-     supports_credentials=True,
-     expose_headers=["Content-Type", "X-CSRFToken"],
-     max_age=3600
-)
 
 # Configure OpenAI
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -651,6 +650,7 @@ def extension_login():
     try:
         logger.info("Extension login attempt received")
         logger.info(f"Request headers: {dict(request.headers)}")
+        logger.info(f"Session data: {dict(session)}")
         logger.info(f"Request form data: {dict(request.form)}")
         
         # Get CSRF token from headers
@@ -665,6 +665,7 @@ def extension_login():
         # Validate CSRF token
         try:
             session_token = session.get('csrf_token')
+            logger.info(f"Comparing CSRF tokens - Header: {csrf_token}, Session: {session_token}")
             if not session_token or session_token != csrf_token:
                 logger.warning("Invalid CSRF token")
                 return jsonify({
@@ -709,12 +710,13 @@ def extension_login():
                     user = User(user_data['id'], user_data['email'], user_data['password_hash'])
                     login_user(user, remember=True)  # Enable remember me
                     session.permanent = True
+                    session.modified = True  # Ensure session is saved
                     
                     # Clear login attempts on successful login
                     login_attempts[email] = []
                     
                     logger.info(f"Successful login for user: {email}")
-                    return jsonify({
+                    response = jsonify({
                         'status': 'success',
                         'message': 'Login successful',
                         'user': {
@@ -722,6 +724,8 @@ def extension_login():
                             'id': user.id
                         }
                     })
+                    response.headers['Set-Cookie'] = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+                    return response
                 
                 # Record failed attempt
                 login_attempts[email].append(time.time())
@@ -769,7 +773,8 @@ def extension_login_form():
         
         # Store the token in the session
         session['csrf_token'] = csrf_token
-        logger.info("Generated and stored new CSRF token")
+        session.modified = True  # Ensure session is saved
+        logger.info(f"Generated and stored new CSRF token: {csrf_token}")
         
         # Render the template
         html = render_template('extension_login.html', form=form)
@@ -783,7 +788,9 @@ def extension_login_form():
         }
         logger.info("Preparing response with HTML and CSRF token")
         
-        return jsonify(response_data)
+        response = jsonify(response_data)
+        response.headers['Set-Cookie'] = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+        return response
     except Exception as e:
         logger.error(f"Extension login form error: {e}", exc_info=True)
         return jsonify({
