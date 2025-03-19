@@ -5,11 +5,11 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            padding: 20px;
             margin: 0;
-            background: #f5f5f5;
+            padding: 20px;
+            background-color: #f5f5f5;
         }
-        .form-container {
+        .login-container {
             max-width: 400px;
             margin: 0 auto;
             background: white;
@@ -23,7 +23,7 @@
         label {
             display: block;
             margin-bottom: 5px;
-            color: #333;
+            font-weight: bold;
         }
         input {
             width: 100%;
@@ -35,31 +35,37 @@
         button {
             width: 100%;
             padding: 10px;
-            background: #007bff;
+            background-color: #007bff;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
         }
         button:disabled {
-            background: #ccc;
+            background-color: #ccc;
             cursor: not-allowed;
         }
         .error-message {
             color: #dc3545;
-            margin-top: 10px;
+            margin-bottom: 15px;
             display: none;
         }
         .loading-message {
             color: #007bff;
-            margin-top: 10px;
+            margin-bottom: 15px;
             display: none;
+        }
+        .success-message {
+            color: #28a745;
+            text-align: center;
+            padding: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="form-container">
-        <form id="smarter-login-form" method="POST" action="/api/extension/login">
+    <div class="login-container">
+        <form id="smarter-login-form" method="POST">
             <input type="hidden" name="csrf_token" value="{{ form.csrf_token.current_token }}">
             <div class="form-group">
                 <label for="email">Email:</label>
@@ -69,9 +75,9 @@
                 <label for="password">Password:</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            <button type="submit" id="submit-button">Login</button>
             <div id="error-message" class="error-message"></div>
             <div id="loading-message" class="loading-message">Logging in...</div>
+            <button type="submit">Login</button>
         </form>
     </div>
 </body>
