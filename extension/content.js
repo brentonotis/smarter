@@ -249,9 +249,14 @@ function createPanel() {
                 body: formData,
                 headers: {
                     'X-CSRFToken': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'Origin': chrome.runtime.getURL(''),
                 },
-                credentials: 'include'
+                credentials: 'include',
+                mode: 'cors',
+                cache: 'no-cache',
+                redirect: 'follow'
             });
             
             // Log the response status and headers

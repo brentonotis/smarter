@@ -69,9 +69,9 @@ serializer = URLSafeTimedSerializer(app.secret_key)
 
 # Configure session
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_DOMAIN'] = None
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for Chrome extension
+app.config['SESSION_COOKIE_DOMAIN'] = 'smarter-865bc5a924ea.herokuapp.com'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_PATH'] = '/'
 app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
@@ -117,7 +117,7 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 # Configure CORS
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://smarter-865bc5a924ea.herokuapp.com", "chrome-extension://*", "https://www.linkedin.com", "*"],
+        "origins": ["chrome-extension://*", "https://smarter-865bc5a924ea.herokuapp.com", "https://www.linkedin.com"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
         "supports_credentials": True,
