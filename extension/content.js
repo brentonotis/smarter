@@ -113,6 +113,7 @@ function createPanel() {
       // Create a new form with the same fields
       const newForm = document.createElement('form');
       newForm.method = 'POST';
+      newForm.action = 'https://smarter-865bc5a924ea.herokuapp.com/api/extension/login';
       newForm.id = 'smarter-login-form';
       newForm.setAttribute('role', 'form');
       newForm.setAttribute('aria-label', 'Login Form');
