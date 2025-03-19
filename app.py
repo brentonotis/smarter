@@ -697,8 +697,12 @@ def extension_login():
 @app.route('/api/extension/login-form', methods=['GET'])
 def extension_login_form():
     try:
+        logger.info("Extension login form request received")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
         # If user is already logged in, return success
         if current_user.is_authenticated:
+            logger.info(f"User already logged in: {current_user.email}")
             return jsonify({
                 'status': 'success',
                 'message': 'Already logged in',
@@ -711,15 +715,23 @@ def extension_login_form():
         # Generate a new CSRF token
         form = FlaskForm()
         csrf_token = form.csrf_token.current_token
+        logger.info("Generated new CSRF token")
         
-        # Return the login form HTML with the CSRF token
-        return jsonify({
+        # Render the template
+        html = render_template('extension_login.html', form=form)
+        logger.info("Rendered login form template")
+        
+        # Return the response
+        response_data = {
             'status': 'success',
-            'html': render_template('extension_login.html', form=form),
+            'html': html,
             'csrf_token': csrf_token
-        })
+        }
+        logger.info("Preparing response with HTML and CSRF token")
+        
+        return jsonify(response_data)
     except Exception as e:
-        logger.error(f"Extension login form error: {e}")
+        logger.error(f"Extension login form error: {e}", exc_info=True)
         return jsonify({
             'status': 'error',
             'message': 'An error occurred while loading the login form.'
