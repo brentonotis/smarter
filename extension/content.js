@@ -171,7 +171,7 @@ function createPanel() {
       
       // Add submit button
       const submitButton = document.createElement('button');
-      submitButton.type = 'submit';
+      submitButton.type = 'button';
       submitButton.id = 'smarter-submit-button';
       submitButton.textContent = 'Login';
       submitButton.setAttribute('aria-label', 'Submit login form');
@@ -204,14 +204,14 @@ function createPanel() {
       
       content.appendChild(newForm);
       
-      // Add event listener to the form
-      newForm.addEventListener('submit', async function(e) {
+      // Add click event listener to the submit button instead of form submit
+      submitButton.addEventListener('click', async function(e) {
         e.preventDefault();
         e.stopPropagation();
         
         const errorMessage = newForm.querySelector('#error-message');
         const loadingMessage = newForm.querySelector('#loading-message');
-        const submitButton = newForm.querySelector('button[type="submit"]');
+        const submitButton = newForm.querySelector('button[type="button"]');
         
         // Disable submit button and show loading message
         submitButton.disabled = true;
