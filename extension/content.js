@@ -92,32 +92,11 @@ function createPanel() {
   loginButton.textContent = 'Login to Smarter';
   loginButton.onclick = async () => {
     try {
-      // Fetch the login form HTML
-      const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login-form', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Origin': chrome.runtime.getURL('')
-        },
-        credentials: 'include',
-        mode: 'cors',
-        referrerPolicy: 'no-referrer'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      if (data.status !== 'success' || !data.html) {
-        throw new Error('Invalid response format');
-      }
+      const data = await loadLoginForm();
       
       // Create a temporary div to parse the HTML
       const temp = document.createElement('div');
-      temp.innerHTML = data.html;
+      temp.innerHTML = data;
       
       // Extract the form and its styles
       const form = temp.querySelector('form');
@@ -148,7 +127,7 @@ function createPanel() {
       csrfInput.type = 'hidden';
       csrfInput.id = 'csrf_token';
       csrfInput.name = 'csrf_token';
-      csrfInput.value = data.csrf_token;
+      csrfInput.value = form.querySelector('input[name="csrf_token"]').value;
       newForm.appendChild(csrfInput);
       
       // Add email field
@@ -497,6 +476,11 @@ async function loadLoginForm() {
 
         const data = await response.json();
         console.log('Response data:', data);
+
+        if (data.status === 'success' && data.user) {
+            // User is already logged in
+            throw new Error('Already logged in');
+        }
 
         if (!data.html) {
             throw new Error('Invalid response format');
