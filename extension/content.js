@@ -234,7 +234,8 @@ function createPanel() {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
                     'Origin': chrome.runtime.getURL(''),
-                    'Content-Type': 'application/x-www-form-urlencoded'
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': chrome.runtime.getURL('')
                 },
                 credentials: 'include',
                 mode: 'cors',

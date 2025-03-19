@@ -48,6 +48,10 @@ def is_xhr():
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
+# Exempt extension endpoints from referrer checking
+csrf._exempt_views.add('extension_login')
+csrf._exempt_views.add('extension_login_form')
+
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
