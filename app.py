@@ -26,6 +26,7 @@ import gc
 import threading
 from db_config import init_db_pool, get_db_connection, release_db_connection, db_pool
 import werkzeug.exceptions
+import uuid
 
 # Initialize Flask app first
 app = Flask(__name__)
@@ -723,6 +724,13 @@ def extension_login():
             session['email'] = user.email
             session['csrf_token'] = generate_csrf()
             
+            # Ensure session ID exists
+            if not session.get('_id'):
+                session['_id'] = str(uuid.uuid4())
+            
+            session.modified = True
+            logger.info(f"Session data after login: {dict(session)}")
+            
             response = jsonify({
                 'status': 'success',
                 'message': 'Login successful',
@@ -736,6 +744,11 @@ def extension_login():
             response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
+            
+            # Set session cookie
+            session_cookie = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+            response.headers['Set-Cookie'] = session_cookie
+            logger.info(f"Setting session cookie: {session_cookie}")
             
             logger.info(f"Login response headers: {dict(response.headers)}")
             return response
@@ -785,7 +798,14 @@ def extension_login_form():
         # Store the token in the session
         session['csrf_token'] = csrf_token
         session.modified = True  # Ensure session is saved
+        
+        # Initialize session if not already done
+        if not session.get('_id'):
+            session['_id'] = str(uuid.uuid4())
+            session.modified = True
+        
         logger.info(f"Generated and stored new CSRF token: {csrf_token}")
+        logger.info(f"Session ID: {session.get('_id')}")
         
         # Render the template
         html = render_template('extension_login.html', form=form)
@@ -800,7 +820,12 @@ def extension_login_form():
         logger.info("Preparing response with HTML and CSRF token")
         
         response = jsonify(response_data)
-        response.headers['Set-Cookie'] = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+        
+        # Set session cookie with proper attributes
+        session_cookie = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+        response.headers['Set-Cookie'] = session_cookie
+        logger.info(f"Setting session cookie: {session_cookie}")
+        
         logger.info(f"Response headers: {dict(response.headers)}")
         return response
     except Exception as e:
