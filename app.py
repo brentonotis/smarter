@@ -57,11 +57,14 @@ csrf._exempt_views.add('extension_login_form')
 def handle_csrf_error(error):
     logger.error(f"CSRF error: {str(error)}")
     logger.error(f"Request headers: {dict(request.headers)}")
+    
+    # Allow CSRF validation for extension requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
             'status': 'error',
             'message': 'CSRF validation failed. Please try again.'
         }), 400
+        
     return render_template('csrf_error.html', reason=str(error)), 400
 
 # Initialize Flask-Login
