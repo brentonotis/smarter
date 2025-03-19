@@ -116,6 +116,14 @@ redis_client = redis.Redis(connection_pool=redis_pool)
 
 # Configure CORS
 CORS(app, resources={
+    r"/api/extension/*": {
+        "origins": ["*"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "X-Requested-With", "Authorization", "Origin", "Accept", "X-CSRFToken"],
+        "supports_credentials": True,
+        "expose_headers": ["Content-Type", "X-CSRFToken"],
+        "max_age": 600
+    },
     r"/*": {
         "origins": ["chrome-extension://*", "https://smarter-865bc5a924ea.herokuapp.com"],
         "methods": ["GET", "POST", "OPTIONS"],
@@ -405,16 +413,14 @@ def add_security_headers(response):
     # Get the origin from the request
     origin = request.headers.get('Origin')
     
-    # Always allow extension requests
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    # For extension endpoints, allow any origin with XMLHttpRequest header
+    if request.path.startswith('/api/extension/') and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         if origin:
             response.headers['Access-Control-Allow-Origin'] = origin
-        else:
-            response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
     
     # Add Cross-Origin-Opener-Policy header
     response.headers['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
