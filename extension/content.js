@@ -227,9 +227,9 @@ function createPanel() {
       newForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        const errorMessage = form.querySelector('#error-message');
-        const loadingMessage = form.querySelector('#loading-message');
-        const submitButton = form.querySelector('button[type="submit"]');
+        const errorMessage = newForm.querySelector('#error-message');
+        const loadingMessage = newForm.querySelector('#loading-message');
+        const submitButton = newForm.querySelector('button[type="submit"]');
         
         // Disable submit button and show loading message
         submitButton.disabled = true;
@@ -238,12 +238,12 @@ function createPanel() {
         
         try {
             // Get CSRF token from the form
-            const csrfToken = form.querySelector('input[name="csrf_token"]').value;
+            const csrfToken = newForm.querySelector('input[name="csrf_token"]').value;
             
             // Log the form data being sent
             console.log('Sending login request with CSRF token:', csrfToken);
             
-            const formData = new FormData(form);
+            const formData = new FormData(newForm);
             const response = await fetch('https://smarter-865bc5a924ea.herokuapp.com/api/extension/login', {
                 method: 'POST',
                 body: formData,
@@ -286,7 +286,7 @@ function createPanel() {
                 });
                 
                 // Update UI to show success
-                form.innerHTML = '<div class="success-message">Login successful! You can close this window and use the extension.</div>';
+                newForm.innerHTML = '<div class="success-message">Login successful! You can close this window and use the extension.</div>';
             } else {
                 throw new Error(data.message || 'Login failed');
             }
