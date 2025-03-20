@@ -671,6 +671,61 @@ def analyze_page():
             'message': 'An error occurred during analysis.'
         }), 500
 
+@app.route('/api/extension/login-form', methods=['GET'])
+def extension_login_form():
+    try:
+        # If user is already logged in, return success
+        if current_user.is_authenticated:
+            return jsonify({
+                'status': 'success',
+                'message': 'Already logged in',
+                'user': {
+                    'email': current_user.email,
+                    'id': current_user.id
+                }
+            })
+        
+        # Generate a new CSRF token
+        form = FlaskForm()
+        csrf_token = form.csrf_token.current_token
+        
+        # Store the token in the session
+        session['csrf_token'] = csrf_token
+        session.modified = True
+        
+        # Initialize session if not already done
+        if not session.get('_id'):
+            session['_id'] = str(uuid.uuid4())
+            session.modified = True
+        
+        # Render the template
+        html = render_template('extension_login.html', form=form)
+        
+        # Return the response
+        response = jsonify({
+            'status': 'success',
+            'html': html,
+            'csrf_token': csrf_token
+        })
+        
+        # Set session cookie
+        response.set_cookie(
+            'session',
+            session.get('_id'),
+            httponly=True,
+            secure=True,
+            samesite='None'
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Extension login form error: {e}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while loading the login form.'
+        }), 500
+
 @app.route('/extension_login', methods=['POST'])
 def extension_login():
     """Handle extension login requests"""
@@ -684,10 +739,16 @@ def extension_login():
         # Get credentials from request
         email = request.form.get('email')
         password = request.form.get('password')
+        csrf_token = request.form.get('csrf_token')
         
         if not email or not password:
             return jsonify({
                 'error': 'Email and password are required'
+            }), 400
+            
+        if not csrf_token or csrf_token != session.get('csrf_token'):
+            return jsonify({
+                'error': 'Invalid CSRF token'
             }), 400
 
         # Get database connection
@@ -743,7 +804,7 @@ def extension_login():
             # Set secure cookie
             response.set_cookie(
                 'session',
-                session.get('session_id', ''),
+                session.get('_id'),
                 httponly=True,
                 secure=True,
                 samesite='None'
@@ -759,74 +820,6 @@ def extension_login():
         app.logger.error(f"Extension login error: {str(e)}")
         return jsonify({
             'error': 'An error occurred during login'
-        }), 500
-
-@app.route('/api/extension/login-form', methods=['GET'])
-def extension_login_form():
-    try:
-        logger.info("=== Extension Login Form Request ===")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        logger.info(f"Session data: {dict(session)}")
-        logger.info(f"Origin: {request.headers.get('Origin')}")
-        logger.info(f"Cookie header: {request.headers.get('Cookie')}")
-        logger.info(f"User authenticated: {current_user.is_authenticated}")
-        if current_user.is_authenticated:
-            logger.info(f"User email: {current_user.email}")
-        
-        # If user is already logged in, return success
-        if current_user.is_authenticated:
-            logger.info(f"User already logged in: {current_user.email}")
-            return jsonify({
-                'status': 'success',
-                'message': 'Already logged in',
-                'user': {
-                    'email': current_user.email,
-                    'id': current_user.id
-                }
-            })
-        
-        # Generate a new CSRF token
-        form = FlaskForm()
-        csrf_token = form.csrf_token.current_token
-        
-        # Store the token in the session
-        session['csrf_token'] = csrf_token
-        session.modified = True  # Ensure session is saved
-        
-        # Initialize session if not already done
-        if not session.get('_id'):
-            session['_id'] = str(uuid.uuid4())
-            session.modified = True
-        
-        logger.info(f"Generated and stored new CSRF token: {csrf_token}")
-        logger.info(f"Session ID: {session.get('_id')}")
-        
-        # Render the template
-        html = render_template('extension_login.html', form=form)
-        logger.info("Rendered login form template")
-        
-        # Return the response
-        response_data = {
-            'status': 'success',
-            'html': html,
-            'csrf_token': csrf_token
-        }
-        logger.info("Preparing response with HTML and CSRF token")
-        
-        response = jsonify(response_data)
-        
-        # Set session cookie with proper attributes
-        session_cookie = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
-        response.headers['Set-Cookie'] = session_cookie
-        logger.info(f"Setting session cookie: {session_cookie}")
-        
-        logger.info(f"Response headers: {dict(response.headers)}")
-        return response
-    except Exception as e:
-        logger.error(f"Extension login form error: {e}", exc_info=True)
-        return jsonify({
-            'status': 'error',
-            'message': 'An error occurred while loading the login form.'
         }), 500
 
 @app.route('/api/company-info', methods=['GET', 'POST'])
