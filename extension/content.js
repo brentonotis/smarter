@@ -14,14 +14,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 sendResponse({ success: true, action: 'removed' });
             } else {
                 console.log("Creating new panel");
-                const newPanel = createPanel();
-                if (newPanel) {
-                    console.log("Panel created successfully");
-                    sendResponse({ success: true, action: 'created' });
-                } else {
-                    console.error("Failed to create panel");
-                    sendResponse({ success: false, error: 'Failed to create panel' });
-                }
+                createPanel();  // Don't initialize here, let the panel creation handle it
+                sendResponse({ success: true, action: 'created' });
             }
         } catch (error) {
             console.error("Error toggling panel:", error);
@@ -181,6 +175,23 @@ function createPanel() {
             dr = false;
         });
 
+        // Initialize after panel is created
+        loadLoginForm().then(html => {
+            if (content) {
+                content.innerHTML = html;
+            }
+        }).catch(error => {
+            console.error('Error loading login form:', error);
+            if (content) {
+                content.innerHTML = `
+                    <div style="text-align: center; color: red;">
+                        <p>Error loading login form: ${error.message}</p>
+                        <p>Please try again or contact support if the issue persists.</p>
+                    </div>
+                `;
+            }
+        });
+
         console.log("Panel created successfully");
         return panel;
     } catch (error) {
@@ -191,21 +202,26 @@ function createPanel() {
 
 // Add this function to initialize the main functionality
 function initializeSmarterFunctionality() {
-  // Get the current URL directly from window.location
-  const currentUrl = window.location.href;
-  
-  // Update the panel content with the main interface
-  const content = document.getElementById('smarter-panel-content');
-  content.innerHTML = `
-    <div style="text-align: center; padding: 20px;">
-      <h3 style="margin-bottom: 15px;">Smarter Assistant</h3>
-      <p style="color: #333; margin-bottom: 20px;">Analyzing: ${currentUrl}</p>
-      <div id="smarter-analysis-result" style="margin-top: 20px;"></div>
-    </div>
-  `;
+    const content = document.getElementById('smarter-panel-content');
+    if (!content) {
+        console.error('Panel content element not found');
+        return;
+    }
 
-  // Start the analysis
-  analyzeCurrentPage(currentUrl);
+    // Get the current URL directly from window.location
+    const currentUrl = window.location.href;
+    
+    // Update the panel content with the main interface
+    content.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <h3 style="margin-bottom: 15px;">Smarter Assistant</h3>
+            <p style="color: #333; margin-bottom: 20px;">Analyzing: ${currentUrl}</p>
+            <div id="smarter-analysis-result" style="margin-top: 20px;"></div>
+        </div>
+    `;
+
+    // Start the analysis
+    analyzeCurrentPage(currentUrl);
 }
 
 // Add this function to analyze the current page
@@ -259,7 +275,7 @@ chrome.runtime.sendMessage({action: 'checkCookies'}, function(response) {
     console.log("Cookies:", response);
 });
 
-// Add debugging to loadLoginForm function
+// Update the loadLoginForm function to handle CSRF token properly
 async function loadLoginForm() {
     try {
         console.log("=== Loading Login Form ===");
@@ -271,8 +287,7 @@ async function loadLoginForm() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json',
                 'Origin': chrome.runtime.getURL(''),
-                'Content-Type': 'application/json',
-                'Referer': 'https://smarter-865bc5a924ea.herokuapp.com/'
+                'Content-Type': 'application/json'
             },
             credentials: 'include',
             mode: 'cors',
@@ -290,6 +305,11 @@ async function loadLoginForm() {
         console.log("Login form response data:", data);
         
         if (data.status === 'success') {
+            // Store CSRF token in localStorage for persistence
+            if (data.csrf_token) {
+                localStorage.setItem('csrf_token', data.csrf_token);
+            }
+            
             // If user is already logged in, store session and return success message
             if (data.user) {
                 console.log("User already logged in:", data.user);
@@ -318,7 +338,7 @@ async function loadLoginForm() {
                             const formData = new FormData(form);
                             const email = formData.get('email');
                             const password = formData.get('password');
-                            const csrfToken = formData.get('csrf_token');
+                            const csrfToken = localStorage.getItem('csrf_token') || formData.get('csrf_token');
                             
                             console.log("=== Login Request Details ===");
                             console.log("CSRF Token:", csrfToken);
@@ -330,7 +350,8 @@ async function loadLoginForm() {
                                     headers: {
                                         'Content-Type': 'application/x-www-form-urlencoded',
                                         'X-CSRFToken': csrfToken,
-                                        'X-Requested-With': 'XMLHttpRequest'
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'Origin': chrome.runtime.getURL('')
                                     },
                                     credentials: 'include',
                                     body: new URLSearchParams({
@@ -344,10 +365,15 @@ async function loadLoginForm() {
                                 console.log("Status:", loginResponse.status);
                                 console.log("Headers:", Object.fromEntries(loginResponse.headers.entries()));
 
+                                if (!loginResponse.ok) {
+                                    const errorData = await loginResponse.json();
+                                    throw new Error(errorData.error || 'Login failed');
+                                }
+
                                 const loginData = await loginResponse.json();
                                 console.log("Login response:", loginData);
                                 
-                                if (loginData.status === 'success') {
+                                if (loginData.success) {
                                     // Store session data
                                     chrome.storage.local.set({
                                         session: {
@@ -360,22 +386,27 @@ async function loadLoginForm() {
                                     
                                     // Update panel content with success message
                                     const content = document.getElementById('smarter-panel-content');
-                                    content.innerHTML = `
-                                        <div style="text-align: center; padding: 20px;">
-                                            <h3 style="color: #28a745; margin-bottom: 15px;">Login Successful!</h3>
-                                            <p>You can now close this window and use the extension.</p>
-                                        </div>
-                                    `;
-                                    
-                                    // Initialize the main functionality
-                                    initializeSmarterFunctionality();
+                                    if (content) {
+                                        content.innerHTML = `
+                                            <div style="text-align: center; padding: 20px;">
+                                                <h3 style="color: #28a745; margin-bottom: 15px;">Login Successful!</h3>
+                                                <p>You can now close this window and use the extension.</p>
+                                            </div>
+                                        `;
+                                        // Initialize the main functionality
+                                        initializeSmarterFunctionality();
+                                    }
                                 } else {
-                                    // Show error message
-                                    const content = document.getElementById('smarter-panel-content');
+                                    throw new Error(loginData.message || 'Login failed');
+                                }
+                            } catch (error) {
+                                console.error('Login error:', error);
+                                const content = document.getElementById('smarter-panel-content');
+                                if (content) {
                                     content.innerHTML = `
                                         <div style="text-align: center; padding: 20px;">
                                             <h3 style="color: #dc3545; margin-bottom: 15px;">Login Failed</h3>
-                                            <p>${loginData.message || 'Please try again.'}</p>
+                                            <p>${error.message}</p>
                                             <button id="try-again-btn" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
                                                 Try Again
                                             </button>
@@ -383,34 +414,16 @@ async function loadLoginForm() {
                                     `;
                                     
                                     // Add click handler for Try Again button
-                                    document.getElementById('try-again-btn').addEventListener('click', async () => {
-                                        const content = document.getElementById('smarter-panel-content');
-                                        try {
+                                    const tryAgainBtn = document.getElementById('try-again-btn');
+                                    if (tryAgainBtn) {
+                                        tryAgainBtn.addEventListener('click', async () => {
                                             const html = await loadLoginForm();
-                                            content.innerHTML = html;
-                                        } catch (error) {
-                                            console.error('Error reloading login form:', error);
-                                            content.innerHTML = `
-                                                <div style="text-align: center; padding: 20px;">
-                                                    <h3 style="color: #dc3545; margin-bottom: 15px;">Error</h3>
-                                                    <p>Failed to reload login form. Please try again later.</p>
-                                                </div>
-                                            `;
-                                        }
-                                    });
+                                            if (content) {
+                                                content.innerHTML = html;
+                                            }
+                                        });
+                                    }
                                 }
-                            } catch (error) {
-                                console.error('Login error:', error);
-                                const content = document.getElementById('smarter-panel-content');
-                                content.innerHTML = `
-                                    <div style="text-align: center; padding: 20px;">
-                                        <h3 style="color: #dc3545; margin-bottom: 15px;">Error</h3>
-                                        <p>An error occurred during login. Please try again.</p>
-                                        <button onclick="loadLoginForm()" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                                            Try Again
-                                        </button>
-                                    </div>
-                                `;
                             }
                         });
                     }
@@ -427,8 +440,7 @@ async function loadLoginForm() {
         console.error('Detailed login form error:', error);
         throw error;
     }
-} 
+}
 
-// Initialize the extension functionality
-console.log("Initializing Smarter functionality");
-initializeSmarterFunctionality(); 
+// Remove the initialization call at the end since we're handling it in panel creation
+console.log("Smarter extension initialized"); 

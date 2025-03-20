@@ -702,10 +702,16 @@ def extension_login_form():
             session['_id'] = str(uuid.uuid4())
             session.modified = True
         
+        # Log session data for debugging
+        logger.info("=== Extension Login Form Request ===")
+        logger.info(f"Session ID: {session.get('_id')}")
+        logger.info(f"CSRF Token: {csrf_token}")
+        logger.info(f"Session data: {dict(session)}")
+        
         # Render the template
         html = render_template('extension_login.html', form=form)
         
-        # Return the response
+        # Return the response with CSRF token
         response = jsonify({
             'status': 'success',
             'html': html,
@@ -718,7 +724,8 @@ def extension_login_form():
             session.get('_id'),
             httponly=True,
             secure=True,
-            samesite='None'
+            samesite='None',
+            domain='smarter-865bc5a924ea.herokuapp.com'
         )
         
         return response
@@ -743,13 +750,13 @@ def extension_login():
         # Get credentials from request
         email = request.form.get('email')
         password = request.form.get('password')
-        csrf_token = request.form.get('csrf_token')
+        csrf_token = request.form.get('csrf_token') or request.headers.get('X-CSRFToken')
         
         logger.info("=== Extension Login Request ===")
         logger.info(f"Request headers: {dict(request.headers)}")
         logger.info(f"Form data: {dict(request.form)}")
         logger.info(f"Session data: {dict(session)}")
-        logger.info(f"CSRF token from form: {csrf_token}")
+        logger.info(f"CSRF token from request: {csrf_token}")
         logger.info(f"CSRF token from session: {session.get('csrf_token')}")
         
         if not email or not password:
@@ -757,9 +764,14 @@ def extension_login():
                 'error': 'Email and password are required'
             }), 400
             
-        # Get CSRF token from either form data or header
-        csrf_token = request.form.get('csrf_token') or request.headers.get('X-CSRFToken')
-        if not csrf_token or csrf_token != session.get('csrf_token'):
+        # Validate CSRF token
+        if not csrf_token:
+            logger.error("No CSRF token provided")
+            return jsonify({
+                'error': 'CSRF token is required'
+            }), 400
+            
+        if csrf_token != session.get('csrf_token'):
             logger.error("CSRF validation failed")
             logger.error(f"Received token: {csrf_token}")
             logger.error(f"Expected token: {session.get('csrf_token')}")
@@ -768,18 +780,18 @@ def extension_login():
             }), 400
 
         # Get database connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
             # Query user
             cursor.execute("""
-                SELECT id, email, password_hash, is_active, is_verified
+                SELECT id, email, password_hash
                 FROM users
                 WHERE email = %s
             """, (email,))
             
             user = cursor.fetchone()
+            cursor.close()
             
             if not user:
                 return jsonify({
@@ -792,20 +804,10 @@ def extension_login():
                     'error': 'Invalid email or password'
                 }), 401
             
-            # Check if user is active and verified
-            if not user[3]:
-                return jsonify({
-                    'error': 'Account is inactive'
-                }), 401
-            
-            if not user[4]:
-                return jsonify({
-                    'error': 'Please verify your email first'
-                }), 401
-            
             # Create session
             session['user_id'] = user[0]
             session['email'] = user[1]
+            session.modified = True
             
             # Set session cookie
             response = make_response(jsonify({
@@ -823,17 +825,14 @@ def extension_login():
                 session.get('_id'),
                 httponly=True,
                 secure=True,
-                samesite='None'
+                samesite='None',
+                domain='smarter-865bc5a924ea.herokuapp.com'
             )
             
             return response
             
-        finally:
-            cursor.close()
-            conn.close()
-            
     except Exception as e:
-        app.logger.error(f"Extension login error: {str(e)}")
+        logger.error(f"Extension login error: {str(e)}", exc_info=True)
         return jsonify({
             'error': 'An error occurred during login'
         }), 500
