@@ -1,6 +1,24 @@
 // Initialize the extension when the content script loads
 console.log("=== Smarter Extension Content Script Loaded ===");
 
+// Set up message listener
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  console.log("Received message:", request);
+  if (request.action === 'togglePanel') {
+    console.log("Toggling panel");
+    const panel = document.getElementById('smarter-panel');
+    if (panel) {
+      console.log("Removing existing panel");
+      panel.remove();
+    } else {
+      console.log("Creating new panel");
+      createPanel();
+    }
+    sendResponse({ success: true });
+    return true;
+  }
+});
+
 // Function to create and manage the panel
 function createPanel() {
   console.log("Creating panel");
@@ -391,26 +409,6 @@ function createPanel() {
   console.log("Panel created successfully");
   return panel;
 }
-
-// Listen for messages from the background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("=== Content Script Message Received ===");
-  console.log("Request:", request);
-  
-  if (request.action === 'togglePanel') {
-    console.log("Toggling panel");
-    const panel = document.getElementById('smarter-panel');
-    if (panel) {
-      console.log("Removing existing panel");
-      panel.remove();
-    } else {
-      console.log("Creating new panel");
-      createPanel();
-    }
-    sendResponse({ success: true });
-    return true;
-  }
-});
 
 // Add this function to initialize the main functionality
 function initializeSmarterFunctionality() {
