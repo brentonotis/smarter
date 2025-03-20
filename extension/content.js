@@ -349,9 +349,7 @@ async function loadLoginForm() {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/x-www-form-urlencoded',
-                                        'X-CSRFToken': csrfToken,
-                                        'X-Requested-With': 'XMLHttpRequest',
-                                        'Origin': chrome.runtime.getURL('')
+                                        'X-Requested-With': 'XMLHttpRequest'
                                     },
                                     credentials: 'include',
                                     body: new URLSearchParams({
@@ -360,19 +358,8 @@ async function loadLoginForm() {
                                         csrf_token: csrfToken
                                     })
                                 });
-                                
-                                console.log("=== Login Response Details ===");
-                                console.log("Status:", loginResponse.status);
-                                console.log("Headers:", Object.fromEntries(loginResponse.headers.entries()));
-
-                                if (!loginResponse.ok) {
-                                    const errorData = await loginResponse.json();
-                                    console.error('Login error response:', errorData);
-                                    throw new Error(errorData.error || 'Login failed');
-                                }
 
                                 const loginData = await loginResponse.json();
-                                console.log("Login response:", loginData);
                                 
                                 if (loginData.success) {
                                     // Store session data

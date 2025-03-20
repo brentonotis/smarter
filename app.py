@@ -49,17 +49,10 @@ def is_xhr():
 # Configure session
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for Chrome extension
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_DOMAIN'] = 'smarter-865bc5a924ea.herokuapp.com'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_PATH'] = '/'
-app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
-app.config['SESSION_COOKIE_SAMESITE_FORCE'] = False  # Allow cross-origin requests
-app.config['SESSION_COOKIE_SAMESITE_LAX'] = False  # Disable SameSite=Lax
-app.config['SESSION_COOKIE_SAMESITE_STRICT'] = False  # Disable SameSite=Strict
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for cross-origin requests
-app.config['SESSION_COOKIE_SECURE'] = True  # Required for SameSite=None
-app.config['SESSION_COOKIE_DOMAIN'] = '.smarter-865bc5a924ea.herokuapp.com'  # Allow subdomains
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -83,8 +76,8 @@ CORS(app,
          r"/*": {
              "origins": ["chrome-extension://*", "https://en.wikipedia.org"],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "X-CSRFToken"],
-             "expose_headers": ["Content-Type", "X-Requested-With", "X-CSRFToken"],
+             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+             "expose_headers": ["Content-Type", "X-Requested-With"],
              "supports_credentials": True,
              "max_age": 3600
          }
@@ -702,12 +695,6 @@ def extension_login_form():
             session['_id'] = str(uuid.uuid4())
             session.modified = True
         
-        # Log session data for debugging
-        logger.info("=== Extension Login Form Request ===")
-        logger.info(f"Session ID: {session.get('_id')}")
-        logger.info(f"CSRF Token: {csrf_token}")
-        logger.info(f"Session data: {dict(session)}")
-        
         # Render the template
         html = render_template('extension_login.html', form=form)
         
@@ -718,7 +705,7 @@ def extension_login_form():
             'csrf_token': csrf_token
         })
         
-        # Set session cookie
+        # Set session cookie with simpler settings
         response.set_cookie(
             'session',
             session.get('_id'),
@@ -741,45 +728,19 @@ def extension_login_form():
 def extension_login():
     """Handle extension login requests"""
     try:
-        # Check if this is an AJAX request
-        if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            logger.error("Invalid request type: Not an AJAX request")
-            return jsonify({
-                'success': False,
-                'error': 'Invalid request type'
-            }), 400
-
         # Get credentials from request
         email = request.form.get('email')
         password = request.form.get('password')
-        csrf_token = request.form.get('csrf_token') or request.headers.get('X-CSRFToken')
-        
-        logger.info("=== Extension Login Request ===")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        logger.info(f"Form data: {dict(request.form)}")
-        logger.info(f"Session data: {dict(session)}")
-        logger.info(f"CSRF token from request: {csrf_token}")
-        logger.info(f"CSRF token from session: {session.get('csrf_token')}")
+        csrf_token = request.form.get('csrf_token')
         
         if not email or not password:
-            logger.error("Missing credentials")
             return jsonify({
                 'success': False,
                 'error': 'Email and password are required'
             }), 400
             
         # Validate CSRF token
-        if not csrf_token:
-            logger.error("No CSRF token provided")
-            return jsonify({
-                'success': False,
-                'error': 'CSRF token is required'
-            }), 400
-            
-        if csrf_token != session.get('csrf_token'):
-            logger.error("CSRF validation failed")
-            logger.error(f"Received token: {csrf_token}")
-            logger.error(f"Expected token: {session.get('csrf_token')}")
+        if not csrf_token or csrf_token != session.get('csrf_token'):
             return jsonify({
                 'success': False,
                 'error': 'Invalid CSRF token'
@@ -800,7 +761,6 @@ def extension_login():
             cursor.close()
             
             if not user:
-                logger.error(f"User not found: {email}")
                 return jsonify({
                     'success': False,
                     'error': 'Invalid email or password'
@@ -808,7 +768,6 @@ def extension_login():
             
             # Verify password
             if not check_password_hash(user[2], password):
-                logger.error(f"Invalid password for user: {email}")
                 return jsonify({
                     'success': False,
                     'error': 'Invalid email or password'
@@ -818,8 +777,6 @@ def extension_login():
             session['user_id'] = user[0]
             session['email'] = user[1]
             session.modified = True
-            
-            logger.info(f"Login successful for user: {email}")
             
             # Set session cookie
             response = make_response(jsonify({
@@ -831,7 +788,7 @@ def extension_login():
                 }
             }))
             
-            # Set secure cookie
+            # Set secure cookie with simpler settings
             response.set_cookie(
                 'session',
                 session.get('_id'),
