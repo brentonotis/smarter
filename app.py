@@ -741,12 +741,22 @@ def extension_login():
         password = request.form.get('password')
         csrf_token = request.form.get('csrf_token')
         
+        logger.info("=== Extension Login Request ===")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        logger.info(f"Form data: {dict(request.form)}")
+        logger.info(f"Session data: {dict(session)}")
+        logger.info(f"CSRF token from form: {csrf_token}")
+        logger.info(f"CSRF token from session: {session.get('csrf_token')}")
+        
         if not email or not password:
             return jsonify({
                 'error': 'Email and password are required'
             }), 400
             
         if not csrf_token or csrf_token != session.get('csrf_token'):
+            logger.error("CSRF validation failed")
+            logger.error(f"Received token: {csrf_token}")
+            logger.error(f"Expected token: {session.get('csrf_token')}")
             return jsonify({
                 'error': 'Invalid CSRF token'
             }), 400

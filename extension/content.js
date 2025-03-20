@@ -322,6 +322,10 @@ async function loadLoginForm() {
                             const password = formData.get('password');
                             const csrfToken = formData.get('csrf_token');
                             
+                            console.log("=== Login Request Details ===");
+                            console.log("CSRF Token:", csrfToken);
+                            console.log("Email:", email);
+                            
                             try {
                                 const loginResponse = await fetch('https://smarter-865bc5a924ea.herokuapp.com/extension_login', {
                                     method: 'POST',
@@ -338,6 +342,10 @@ async function loadLoginForm() {
                                     })
                                 });
                                 
+                                console.log("=== Login Response Details ===");
+                                console.log("Status:", loginResponse.status);
+                                console.log("Headers:", Object.fromEntries(loginResponse.headers.entries()));
+
                                 const loginData = await loginResponse.json();
                                 console.log("Login response:", loginData);
                                 
