@@ -744,6 +744,7 @@ def extension_login():
         # Check if this is an AJAX request
         if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
+                'success': False,
                 'error': 'Invalid request type'
             }), 400
 
@@ -761,6 +762,7 @@ def extension_login():
         
         if not email or not password:
             return jsonify({
+                'success': False,
                 'error': 'Email and password are required'
             }), 400
             
@@ -768,6 +770,7 @@ def extension_login():
         if not csrf_token:
             logger.error("No CSRF token provided")
             return jsonify({
+                'success': False,
                 'error': 'CSRF token is required'
             }), 400
             
@@ -776,6 +779,7 @@ def extension_login():
             logger.error(f"Received token: {csrf_token}")
             logger.error(f"Expected token: {session.get('csrf_token')}")
             return jsonify({
+                'success': False,
                 'error': 'Invalid CSRF token'
             }), 400
 
@@ -795,12 +799,14 @@ def extension_login():
             
             if not user:
                 return jsonify({
+                    'success': False,
                     'error': 'Invalid email or password'
                 }), 401
             
             # Verify password
             if not check_password_hash(user[2], password):
                 return jsonify({
+                    'success': False,
                     'error': 'Invalid email or password'
                 }), 401
             
@@ -834,7 +840,8 @@ def extension_login():
     except Exception as e:
         logger.error(f"Extension login error: {str(e)}", exc_info=True)
         return jsonify({
-            'error': 'An error occurred during login'
+            'success': False,
+            'error': f'An error occurred during login: {str(e)}'
         }), 500
 
 @app.route('/api/company-info', methods=['GET', 'POST'])

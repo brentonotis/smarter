@@ -397,7 +397,7 @@ async function loadLoginForm() {
                                         initializeSmarterFunctionality();
                                     }
                                 } else {
-                                    throw new Error(loginData.message || 'Login failed');
+                                    throw new Error(loginData.error || 'Login failed');
                                 }
                             } catch (error) {
                                 console.error('Login error:', error);
@@ -406,7 +406,7 @@ async function loadLoginForm() {
                                     content.innerHTML = `
                                         <div style="text-align: center; padding: 20px;">
                                             <h3 style="color: #dc3545; margin-bottom: 15px;">Login Failed</h3>
-                                            <p>${error.message}</p>
+                                            <p style="margin-bottom: 15px;">${error.message}</p>
                                             <button id="try-again-btn" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
                                                 Try Again
                                             </button>
