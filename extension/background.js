@@ -14,31 +14,6 @@ chrome.runtime.onInstalled.addListener(function() {
     });
 });
 
-// Listen for tab updates to inject content script only if not already injected
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
-        console.log("=== Checking content script injection for tab:", tabId);
-        chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            function: () => {
-                return !!document.getElementById('smarter-panel');
-            }
-        }).then((results) => {
-            if (!results[0].result) {
-                console.log("Injecting content script for tab:", tabId);
-                chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    files: ['content.js']
-                }).catch(error => {
-                    console.error('Error injecting content script:', error);
-                });
-            }
-        }).catch(error => {
-            console.error('Error checking content script:', error);
-        });
-    }
-});
-
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     console.log("=== Background Script Message Received ===");
@@ -66,10 +41,13 @@ chrome.cookies.onChanged.addListener(function(changeInfo) {
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
     try {
+        console.log("Extension icon clicked for tab:", tab.id);
         // Send message to content script to toggle panel
         chrome.tabs.sendMessage(tab.id, { action: 'togglePanel' }, (response) => {
             if (chrome.runtime.lastError) {
                 console.error('Error sending message:', chrome.runtime.lastError);
+            } else if (response) {
+                console.log('Panel toggle response:', response);
             }
         });
     } catch (error) {
