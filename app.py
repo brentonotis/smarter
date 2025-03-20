@@ -74,8 +74,8 @@ CORS(app,
          r"/*": {
              "origins": ["chrome-extension://*", "https://en.wikipedia.org"],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-             "expose_headers": ["Content-Type", "X-Requested-With"],
+             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "X-CSRFToken"],
+             "expose_headers": ["Content-Type", "X-Requested-With", "X-CSRFToken"],
              "supports_credentials": True,
              "max_age": 3600
          }
@@ -666,109 +666,94 @@ def analyze_page():
             'message': 'An error occurred during analysis.'
         }), 500
 
-@app.route('/extension_login', methods=['POST', 'OPTIONS'])
+@app.route('/extension_login', methods=['POST'])
 def extension_login():
-    if request.method == 'OPTIONS':
-        logger.info("=== Extension Login OPTIONS Request ===")
-        logger.info(f"Request headers: {dict(request.headers)}")
-        response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        logger.info(f"OPTIONS response headers: {dict(response.headers)}")
-        return response
-
-    logger.info("=== Extension Login POST Request ===")
-    logger.info(f"Request headers: {dict(request.headers)}")
-    logger.info(f"Session data: {dict(session)}")
-    logger.info(f"Form data: {dict(request.form)}")
-    logger.info(f"Origin: {request.headers.get('Origin')}")
-    logger.info(f"Cookie header: {request.headers.get('Cookie')}")
-    logger.info(f"CSRF token from header: {request.headers.get('X-CSRFToken')}")
-    logger.info(f"CSRF token from form: {request.form.get('csrf_token')}")
-
+    """Handle extension login requests"""
     try:
-        # Validate CSRF token
-        csrf_token = request.headers.get('X-CSRFToken')
-        if not csrf_token:
-            logger.error("Missing CSRF token in request")
+        # Check if this is an AJAX request
+        if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
-                'status': 'error',
-                'message': 'Missing CSRF token. Please try again.'
+                'error': 'Invalid request type'
             }), 400
 
-        # Get form data
+        # Get credentials from request
         email = request.form.get('email')
         password = request.form.get('password')
         
         if not email or not password:
-            logger.error("Missing email or password")
             return jsonify({
-                'status': 'error',
-                'message': 'Email and password are required.'
+                'error': 'Email and password are required'
             }), 400
 
-        # Attempt login using psycopg2
-        with get_db_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-                user_data = cursor.fetchone()
-                
-                if user_data and check_password_hash(user_data['password_hash'], password):
-                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
-                    login_user(user)
-                    logger.info(f"User {email} logged in successfully")
-                    
-                    # Set session data
-                    session['user_id'] = user.id
-                    session['email'] = user.email
-                    session['csrf_token'] = generate_csrf()
-                    
-                    # Ensure session ID exists
-                    if not session.get('_id'):
-                        session['_id'] = str(uuid.uuid4())
-                    
-                    session.modified = True
-                    logger.info(f"Session data after login: {dict(session)}")
-                    
-                    response = jsonify({
-                        'status': 'success',
-                        'message': 'Login successful',
-                        'user': {
-                            'id': user.id,
-                            'email': user.email
-                        }
-                    })
-                    
-                    # Set CORS headers
-                    response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-                    response.headers.add('Access-Control-Allow-Credentials', 'true')
-                    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
-                    
-                    # Set session cookie
-                    session_cookie = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
-                    response.headers['Set-Cookie'] = session_cookie
-                    logger.info(f"Setting session cookie: {session_cookie}")
-                    
-                    logger.info(f"Login response headers: {dict(response.headers)}")
-                    return response
-                    
-                else:
-                    logger.warning(f"Failed login attempt for email: {email}")
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Invalid email or password.'
-                    }), 401
-            finally:
-                cursor.close()
-
+        # Get database connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Query user
+            cursor.execute("""
+                SELECT id, email, password_hash, is_active, is_verified
+                FROM users
+                WHERE email = %s
+            """, (email,))
+            
+            user = cursor.fetchone()
+            
+            if not user:
+                return jsonify({
+                    'error': 'Invalid email or password'
+                }), 401
+            
+            # Verify password
+            if not check_password_hash(user[2], password):
+                return jsonify({
+                    'error': 'Invalid email or password'
+                }), 401
+            
+            # Check if user is active and verified
+            if not user[3]:
+                return jsonify({
+                    'error': 'Account is inactive'
+                }), 401
+            
+            if not user[4]:
+                return jsonify({
+                    'error': 'Please verify your email first'
+                }), 401
+            
+            # Create session
+            session['user_id'] = user[0]
+            session['email'] = user[1]
+            
+            # Set session cookie
+            response = make_response(jsonify({
+                'success': True,
+                'message': 'Login successful',
+                'user': {
+                    'id': user[0],
+                    'email': user[1]
+                }
+            }))
+            
+            # Set secure cookie
+            response.set_cookie(
+                'session',
+                session.get('session_id', ''),
+                httponly=True,
+                secure=True,
+                samesite='None'
+            )
+            
+            return response
+            
+        finally:
+            cursor.close()
+            conn.close()
+            
     except Exception as e:
-        logger.error(f"Error during extension login: {str(e)}", exc_info=True)
+        app.logger.error(f"Extension login error: {str(e)}")
         return jsonify({
-            'status': 'error',
-            'message': 'An error occurred during login. Please try again.'
+            'error': 'An error occurred during login'
         }), 500
 
 @app.route('/api/extension/login-form', methods=['GET'])
@@ -1254,10 +1239,12 @@ def get_api_status():
 # Add CORS headers specifically for extension endpoints
 @app.after_request
 def after_request(response):
-    if request.path.startswith('/api/extension/'):
-        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        response.headers.add('Access-Control-Max-Age', '3600')
+    if request.path.startswith('/api/extension/') or request.path == '/extension_login':
+        origin = request.headers.get('Origin')
+        if origin and (origin.startswith('chrome-extension://') or origin == 'https://en.wikipedia.org'):
+            response.headers.add('Access-Control-Allow-Origin', origin)
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-CSRFToken')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Max-Age', '3600')
     return response
