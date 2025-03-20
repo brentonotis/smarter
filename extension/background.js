@@ -14,15 +14,27 @@ chrome.runtime.onInstalled.addListener(function() {
     });
 });
 
-// Listen for tab updates to inject content script
+// Listen for tab updates to inject content script only if not already injected
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
-        console.log("=== Injecting content script for tab:", tabId);
+        console.log("=== Checking content script injection for tab:", tabId);
         chrome.scripting.executeScript({
             target: { tabId: tabId },
-            files: ['content.js']
+            function: () => {
+                return !!document.getElementById('smarter-panel');
+            }
+        }).then((results) => {
+            if (!results[0].result) {
+                console.log("Injecting content script for tab:", tabId);
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ['content.js']
+                }).catch(error => {
+                    console.error('Error injecting content script:', error);
+                });
+            }
         }).catch(error => {
-            console.error('Error injecting content script:', error);
+            console.error('Error checking content script:', error);
         });
     }
 });
@@ -51,27 +63,18 @@ chrome.cookies.onChanged.addListener(function(changeInfo) {
     }
 });
 
+// Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['content.js']
-    });
-    
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      function: () => {
-        const panel = document.getElementById('smarter-panel');
-        if (panel) {
-          panel.remove();
-        } else {
-          createPanel();
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error executing script:', error);
-  }
+    try {
+        // Send message to content script to toggle panel
+        chrome.tabs.sendMessage(tab.id, { action: 'togglePanel' }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error('Error sending message:', chrome.runtime.lastError);
+            }
+        });
+    } catch (error) {
+        console.error('Error handling extension click:', error);
+    }
 });
 
 function createPanel() {

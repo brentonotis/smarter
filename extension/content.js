@@ -3,6 +3,7 @@ console.log("=== Smarter Extension Content Script Loaded ===");
 
 // Function to create and manage the panel
 function createPanel() {
+  console.log("Creating panel");
   const panel = document.createElement('div');
   panel.id = 'smarter-panel';
   panel.style.cssText = `
@@ -59,7 +60,10 @@ function createPanel() {
     padding: 0 5px !important;
   `;
   close.innerHTML = '×';
-  close.onclick = () => panel.remove();
+  close.onclick = () => {
+    console.log("Closing panel");
+    panel.remove();
+  };
   header.appendChild(close);
 
   const content = document.createElement('div');
@@ -179,7 +183,7 @@ function createPanel() {
       
       // Add submit button
       const submitButton = document.createElement('button');
-      submitButton.type = 'submit';  // Changed back to 'submit' for native form submission
+      submitButton.type = 'submit';
       submitButton.id = 'smarter-submit-button';
       submitButton.textContent = 'Login';
       submitButton.setAttribute('aria-label', 'Submit login form');
@@ -383,6 +387,9 @@ function createPanel() {
     sh = panel.offsetHeight;
     e.preventDefault();
   });
+
+  console.log("Panel created successfully");
+  return panel;
 }
 
 // Listen for messages from the background script
@@ -394,10 +401,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("Toggling panel");
     const panel = document.getElementById('smarter-panel');
     if (panel) {
+      console.log("Removing existing panel");
       panel.remove();
     } else {
+      console.log("Creating new panel");
       createPanel();
     }
+    sendResponse({ success: true });
+    return true;
   }
 });
 
