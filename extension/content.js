@@ -191,23 +191,21 @@ function createPanel() {
 
 // Add this function to initialize the main functionality
 function initializeSmarterFunctionality() {
-  // Get the current tab's URL
-  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-    const currentUrl = tabs[0].url;
-    
-    // Update the panel content with the main interface
-    const content = document.getElementById('smarter-panel-content');
-    content.innerHTML = `
-      <div style="text-align: center; padding: 20px;">
-        <h3 style="margin-bottom: 15px;">Smarter Assistant</h3>
-        <p style="color: #333; margin-bottom: 20px;">Analyzing: ${currentUrl}</p>
-        <div id="smarter-analysis-result" style="margin-top: 20px;"></div>
-      </div>
-    `;
+  // Get the current URL directly from window.location
+  const currentUrl = window.location.href;
+  
+  // Update the panel content with the main interface
+  const content = document.getElementById('smarter-panel-content');
+  content.innerHTML = `
+    <div style="text-align: center; padding: 20px;">
+      <h3 style="margin-bottom: 15px;">Smarter Assistant</h3>
+      <p style="color: #333; margin-bottom: 20px;">Analyzing: ${currentUrl}</p>
+      <div id="smarter-analysis-result" style="margin-top: 20px;"></div>
+    </div>
+  `;
 
-    // Start the analysis
-    analyzeCurrentPage(currentUrl);
-  });
+  // Start the analysis
+  analyzeCurrentPage(currentUrl);
 }
 
 // Add this function to analyze the current page
