@@ -335,6 +335,90 @@ async function loadLoginForm() {
             // If we have HTML content, return it
             if (data.html) {
                 console.log("Received login form HTML");
+                // Add event listener to the form after it's inserted into the DOM
+                setTimeout(() => {
+                    const form = document.querySelector('#smarter-panel-content form');
+                    if (form) {
+                        form.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+                            console.log("Form submitted");
+                            
+                            const formData = new FormData(form);
+                            const email = formData.get('email');
+                            const password = formData.get('password');
+                            const csrfToken = formData.get('csrf_token');
+                            
+                            try {
+                                const loginResponse = await fetch('https://smarter-865bc5a924ea.herokuapp.com/extension_login', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                        'X-CSRFToken': csrfToken,
+                                        'X-Requested-With': 'XMLHttpRequest'
+                                    },
+                                    credentials: 'include',
+                                    body: new URLSearchParams({
+                                        email: email,
+                                        password: password,
+                                        csrf_token: csrfToken
+                                    })
+                                });
+                                
+                                const loginData = await loginResponse.json();
+                                console.log("Login response:", loginData);
+                                
+                                if (loginData.status === 'success') {
+                                    // Store session data
+                                    chrome.storage.local.set({
+                                        session: {
+                                            user: loginData.user,
+                                            timestamp: Date.now()
+                                        }
+                                    }, function() {
+                                        console.log('Session data stored after login');
+                                    });
+                                    
+                                    // Update panel content with success message
+                                    const content = document.getElementById('smarter-panel-content');
+                                    content.innerHTML = `
+                                        <div style="text-align: center; padding: 20px;">
+                                            <h3 style="color: #28a745; margin-bottom: 15px;">Login Successful!</h3>
+                                            <p>You can now close this window and use the extension.</p>
+                                        </div>
+                                    `;
+                                    
+                                    // Initialize the main functionality
+                                    initializeSmarterFunctionality();
+                                } else {
+                                    // Show error message
+                                    const content = document.getElementById('smarter-panel-content');
+                                    content.innerHTML = `
+                                        <div style="text-align: center; padding: 20px;">
+                                            <h3 style="color: #dc3545; margin-bottom: 15px;">Login Failed</h3>
+                                            <p>${loginData.message || 'Please try again.'}</p>
+                                            <button onclick="loadLoginForm()" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                                Try Again
+                                            </button>
+                                        </div>
+                                    `;
+                                }
+                            } catch (error) {
+                                console.error('Login error:', error);
+                                const content = document.getElementById('smarter-panel-content');
+                                content.innerHTML = `
+                                    <div style="text-align: center; padding: 20px;">
+                                        <h3 style="color: #dc3545; margin-bottom: 15px;">Error</h3>
+                                        <p>An error occurred during login. Please try again.</p>
+                                        <button onclick="loadLoginForm()" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                            Try Again
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                        });
+                    }
+                }, 0);
+                
                 return data.html;
             }
             
