@@ -27,6 +27,14 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         });
         return true; // Will respond asynchronously
     }
+    
+    if (request.action === 'checkCookies') {
+        chrome.cookies.getAll({domain: "smarter-865bc5a924ea.herokuapp.com"}, function(cookies) {
+            console.log("Checking cookies:", cookies);
+            sendResponse(cookies);
+        });
+        return true; // Will respond asynchronously
+    }
 });
 
 // Add cookie change listener

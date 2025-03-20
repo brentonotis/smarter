@@ -76,12 +76,12 @@ CORS(app,
              "methods": ["GET", "POST", "OPTIONS"],
              "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin", "Authorization", "Referer"],
              "supports_credentials": True,
-             "expose_headers": ["Content-Type", "X-CSRFToken"],
+             "expose_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With"],
              "max_age": 3600
          }
      },
      supports_credentials=True,
-     expose_headers=["Content-Type", "X-CSRFToken"],
+     expose_headers=["Content-Type", "X-CSRFToken", "X-Requested-With"],
      max_age=3600
 )
 

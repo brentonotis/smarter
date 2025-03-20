@@ -35,177 +35,177 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 function createPanel() {
     console.log("Creating panel");
     try {
-        const panel = document.createElement('div');
-        panel.id = 'smarter-panel';
-        panel.style.cssText = `
-            position: fixed !important;
-            top: 20px !important;
-            right: 20px !important;
-            width: 400px !important;
-            height: 600px !important;
-            background: white !important;
-            border-radius: 8px !important;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
-            z-index: 999999 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            transform: translate3d(0,0,0) !important;
-            will-change: transform !important;
-            contain: layout size !important;
-            isolation: isolate !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            pointer-events: auto !important;
-        `;
+  const panel = document.createElement('div');
+  panel.id = 'smarter-panel';
+  panel.style.cssText = `
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    width: 400px !important;
+    height: 600px !important;
+    background: white !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+    z-index: 999999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    transform: translate3d(0,0,0) !important;
+    will-change: transform !important;
+    contain: layout size !important;
+    isolation: isolate !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    pointer-events: auto !important;
+  `;
 
-        const header = document.createElement('div');
-        header.id = 'smarter-panel-header';
-        header.style.cssText = `
-            padding: 10px !important;
-            background: #f8f9fa !important;
-            border-bottom: 1px solid #dee2e6 !important;
-            border-radius: 8px 8px 0 0 !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            cursor: move !important;
-            position: relative !important;
-            z-index: 1 !important;
-        `;
+  const header = document.createElement('div');
+  header.id = 'smarter-panel-header';
+  header.style.cssText = `
+    padding: 10px !important;
+    background: #f8f9fa !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    border-radius: 8px 8px 0 0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    cursor: move !important;
+    position: relative !important;
+    z-index: 1 !important;
+  `;
 
-        const title = document.createElement('div');
-        title.id = 'smarter-panel-title';
-        title.style.cssText = 'font-weight: bold; color: #333;';
-        title.textContent = 'Smarter';
-        header.appendChild(title);
+  const title = document.createElement('div');
+  title.id = 'smarter-panel-title';
+  title.style.cssText = 'font-weight: bold; color: #333;';
+  title.textContent = 'Smarter';
+  header.appendChild(title);
 
-        const close = document.createElement('button');
-        close.id = 'smarter-panel-close';
-        close.style.cssText = `
-            background: none !important;
-            border: none !important;
-            font-size: 20px !important;
-            cursor: pointer !important;
-            color: #666 !important;
-            padding: 0 5px !important;
-        `;
-        close.innerHTML = '×';
+  const close = document.createElement('button');
+  close.id = 'smarter-panel-close';
+  close.style.cssText = `
+    background: none !important;
+    border: none !important;
+    font-size: 20px !important;
+    cursor: pointer !important;
+    color: #666 !important;
+    padding: 0 5px !important;
+  `;
+  close.innerHTML = '×';
         close.onclick = () => {
             console.log("Closing panel");
             panel.remove();
         };
-        header.appendChild(close);
+  header.appendChild(close);
 
-        const content = document.createElement('div');
-        content.id = 'smarter-panel-content';
-        content.style.cssText = `
-            flex: 1 !important;
-            border-radius: 0 0 8px 8px !important;
-            overflow: auto !important;
-            padding: 20px !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            position: relative !important;
-            isolation: isolate !important;
-            contain: content !important;
-            background: white !important;
-            pointer-events: auto !important;
-        `;
-        
-        const loginButton = document.createElement('button');
-        loginButton.style.cssText = `
-            padding: 10px 20px !important;
-            background: #007bff !important;
-            color: white !important;
-            border: none !important;
-            border-radius: 5px !important;
-            cursor: pointer !important;
-            font-size: 16px !important;
-        `;
-        loginButton.textContent = 'Login to Smarter';
-        loginButton.onclick = async () => {
-            try {
-                const data = await loadLoginForm();
+  const content = document.createElement('div');
+  content.id = 'smarter-panel-content';
+  content.style.cssText = `
+    flex: 1 !important;
+    border-radius: 0 0 8px 8px !important;
+    overflow: auto !important;
+    padding: 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    position: relative !important;
+    isolation: isolate !important;
+    contain: content !important;
+    background: white !important;
+    pointer-events: auto !important;
+  `;
+  
+  const loginButton = document.createElement('button');
+  loginButton.style.cssText = `
+    padding: 10px 20px !important;
+    background: #007bff !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 5px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+  `;
+  loginButton.textContent = 'Login to Smarter';
+  loginButton.onclick = async () => {
+    try {
+      const data = await loadLoginForm();
                 content.innerHTML = data;
-            } catch (error) {
+        } catch (error) {
                 console.error('Error loading login form:', error);
-                content.innerHTML = `
-                    <div style="text-align: center; color: red;">
-                        <p>Error loading login form: ${error.message}</p>
-                        <p>Please try again or contact support if the issue persists.</p>
-                    </div>
-                `;
-            }
-        };
-        
-        content.appendChild(loginButton);
+      content.innerHTML = `
+        <div style="text-align: center; color: red;">
+          <p>Error loading login form: ${error.message}</p>
+          <p>Please try again or contact support if the issue persists.</p>
+        </div>
+      `;
+    }
+  };
+  
+  content.appendChild(loginButton);
 
-        const resize = document.createElement('div');
-        resize.id = 'smarter-panel-resize';
-        resize.style.cssText = `
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 20px;
-            height: 20px;
-            cursor: se-resize;
-            background: linear-gradient(135deg, transparent 50%, #ddd 50%);
-        `;
+  const resize = document.createElement('div');
+  resize.id = 'smarter-panel-resize';
+  resize.style.cssText = `
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, #ddd 50%);
+  `;
 
-        panel.appendChild(header);
-        panel.appendChild(content);
-        panel.appendChild(resize);
-        document.body.appendChild(panel);
+  panel.appendChild(header);
+  panel.appendChild(content);
+  panel.appendChild(resize);
+  document.body.appendChild(panel);
 
         // Add drag functionality
-        let x = 0;
-        let y = 0;
-        let ox = 0;
-        let oy = 0;
-        let dr = false;
-        let rs = false;
-        let sw = 0;
-        let sh = 0;
+  let x = 0;
+  let y = 0;
+  let ox = 0;
+  let oy = 0;
+  let dr = false;
+  let rs = false;
+  let sw = 0;
+  let sh = 0;
 
-        header.addEventListener('mousedown', (e) => {
-            if (e.target === header || e.target === title) {
-                dr = true;
-                ox = e.clientX - x;
-                oy = e.clientY - y;
-            }
-        });
+  header.addEventListener('mousedown', (e) => {
+    if (e.target === header || e.target === title) {
+      dr = true;
+      ox = e.clientX - x;
+      oy = e.clientY - y;
+    }
+  });
 
-        document.addEventListener('mousemove', (e) => {
-            if (dr) {
-                e.preventDefault();
-                x = e.clientX - ox;
-                y = e.clientY - oy;
-                panel.style.transform = `translate3d(${x}px,${y}px,0)`;
-            }
-            if (rs) {
-                const w = sw + (e.clientX - sw);
-                const h = sh + (e.clientY - sh);
-                if (w > 300 && h > 200) {
-                    panel.style.width = w + 'px';
-                    panel.style.height = h + 'px';
-                }
-            }
-        });
+  document.addEventListener('mousemove', (e) => {
+    if (dr) {
+      e.preventDefault();
+      x = e.clientX - ox;
+      y = e.clientY - oy;
+      panel.style.transform = `translate3d(${x}px,${y}px,0)`;
+    }
+    if (rs) {
+      const w = sw + (e.clientX - sw);
+      const h = sh + (e.clientY - sh);
+      if (w > 300 && h > 200) {
+        panel.style.width = w + 'px';
+        panel.style.height = h + 'px';
+      }
+    }
+  });
 
-        document.addEventListener('mouseup', () => {
-            dr = false;
-            rs = false;
-        });
+  document.addEventListener('mouseup', () => {
+    dr = false;
+    rs = false;
+  });
 
-        resize.addEventListener('mousedown', (e) => {
-            rs = true;
-            sw = panel.offsetWidth;
-            sh = panel.offsetHeight;
-            e.preventDefault();
-        });
+  resize.addEventListener('mousedown', (e) => {
+    rs = true;
+    sw = panel.offsetWidth;
+    sh = panel.offsetHeight;
+    e.preventDefault();
+  });
 
         console.log("Panel created successfully");
         return panel;
@@ -281,10 +281,10 @@ async function analyzeCurrentPage(url) {
   }
 }
 
-// Add cookie debugging
-chrome.cookies.getAll({domain: "smarter-865bc5a924ea.herokuapp.com"}, function(cookies) {
+// Add cookie debugging through background script
+chrome.runtime.sendMessage({action: 'checkCookies'}, function(response) {
     console.log("=== Current Cookies ===");
-    console.log("Cookies:", cookies);
+    console.log("Cookies:", response);
 });
 
 // Add debugging to loadLoginForm function
@@ -396,11 +396,28 @@ async function loadLoginForm() {
                                         <div style="text-align: center; padding: 20px;">
                                             <h3 style="color: #dc3545; margin-bottom: 15px;">Login Failed</h3>
                                             <p>${loginData.message || 'Please try again.'}</p>
-                                            <button onclick="loadLoginForm()" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                            <button id="try-again-btn" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
                                                 Try Again
                                             </button>
                                         </div>
                                     `;
+                                    
+                                    // Add click handler for Try Again button
+                                    document.getElementById('try-again-btn').addEventListener('click', async () => {
+                                        const content = document.getElementById('smarter-panel-content');
+                                        try {
+                                            const html = await loadLoginForm();
+                                            content.innerHTML = html;
+                                        } catch (error) {
+                                            console.error('Error reloading login form:', error);
+                                            content.innerHTML = `
+                                                <div style="text-align: center; padding: 20px;">
+                                                    <h3 style="color: #dc3545; margin-bottom: 15px;">Error</h3>
+                                                    <p>Failed to reload login form. Please try again later.</p>
+                                                </div>
+                                            `;
+                                        }
+                                    });
                                 }
                             } catch (error) {
                                 console.error('Login error:', error);
@@ -430,7 +447,7 @@ async function loadLoginForm() {
         console.error('Detailed login form error:', error);
         throw error;
     }
-}
+} 
 
 // Initialize the extension functionality
 console.log("Initializing Smarter functionality");
