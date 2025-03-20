@@ -1,4 +1,5 @@
-// This file is intentionally empty as we're handling everything in the background script 
+// Initialize the extension when the content script loads
+console.log("=== Smarter Extension Content Script Loaded ===");
 
 // Function to create and manage the panel
 function createPanel() {
@@ -386,7 +387,11 @@ function createPanel() {
 
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log("=== Content Script Message Received ===");
+  console.log("Request:", request);
+  
   if (request.action === 'togglePanel') {
+    console.log("Toggling panel");
     const panel = document.getElementById('smarter-panel');
     if (panel) {
       panel.remove();
@@ -527,4 +532,8 @@ async function loadLoginForm() {
         console.error('Detailed login form error:', error);
         throw error;
     }
-} 
+}
+
+// Initialize the extension functionality
+console.log("Initializing Smarter functionality");
+initializeSmarterFunctionality(); 

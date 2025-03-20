@@ -7,7 +7,8 @@
     "activeTab",
     "storage",
     "tabs",
-    "cookies"
+    "cookies",
+    "scripting"
   ],
   "host_permissions": [
     "https://smarter-865bc5a924ea.herokuapp.com/*",

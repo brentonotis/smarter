@@ -14,6 +14,19 @@ chrome.runtime.onInstalled.addListener(function() {
     });
 });
 
+// Listen for tab updates to inject content script
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
+        console.log("=== Injecting content script for tab:", tabId);
+        chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ['content.js']
+        }).catch(error => {
+            console.error('Error injecting content script:', error);
+        });
+    }
+});
+
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     console.log("=== Background Script Message Received ===");
