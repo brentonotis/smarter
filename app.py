@@ -72,18 +72,14 @@ app.config['WTF_EXEMPT_METHODS'] = ['OPTIONS']  # Exempt OPTIONS requests from C
 CORS(app, 
      resources={
          r"/*": {
-             "origins": ["chrome-extension://*", "https://github.com"],
-             "methods": ["GET", "POST", "OPTIONS"],
-             "allow_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With", "Accept", "Origin", "Authorization", "Referer"],
+             "origins": ["chrome-extension://*", "https://en.wikipedia.org"],
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+             "expose_headers": ["Content-Type", "X-Requested-With"],
              "supports_credentials": True,
-             "expose_headers": ["Content-Type", "X-CSRFToken", "X-Requested-With"],
              "max_age": 3600
          }
-     },
-     supports_credentials=True,
-     expose_headers=["Content-Type", "X-CSRFToken", "X-Requested-With"],
-     max_age=3600
-)
+     })
 
 # Add a custom error handler for CSRF errors
 @app.errorhandler(CSRFError)
@@ -381,12 +377,12 @@ def before_request():
         # Set CORS headers for extension requests
         response = make_response()
         origin = request.headers.get('Origin')
-        if origin and (origin.startswith('chrome-extension://') or origin == 'https://github.com'):
+        if origin and (origin.startswith('chrome-extension://') or origin == 'https://en.wikipedia.org'):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With, Accept, Origin, Authorization, Referer'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-            response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-CSRFToken'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Expose-Headers'] = 'Content-Type, X-Requested-With'
             response.headers['Access-Control-Max-Age'] = '3600'
     
     # Ensure database pool is initialized
@@ -472,7 +468,7 @@ def add_security_headers(response):
     
     # For extension endpoints, allow any origin with XMLHttpRequest header
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        if origin and (origin.startswith('chrome-extension://') or origin == 'https://github.com'):
+        if origin and (origin.startswith('chrome-extension://') or origin == 'https://en.wikipedia.org'):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Requested-With, Authorization, Origin, Accept, X-CSRFToken'
@@ -1254,3 +1250,14 @@ def get_api_status():
         return jsonify({
             'error': 'Failed to get API status'
         }), 500
+
+# Add CORS headers specifically for extension endpoints
+@app.after_request
+def after_request(response):
+    if request.path.startswith('/api/extension/'):
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Max-Age', '3600')
+    return response
