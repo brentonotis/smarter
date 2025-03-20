@@ -743,6 +743,7 @@ def extension_login():
     try:
         # Check if this is an AJAX request
         if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            logger.error("Invalid request type: Not an AJAX request")
             return jsonify({
                 'success': False,
                 'error': 'Invalid request type'
@@ -761,6 +762,7 @@ def extension_login():
         logger.info(f"CSRF token from session: {session.get('csrf_token')}")
         
         if not email or not password:
+            logger.error("Missing credentials")
             return jsonify({
                 'success': False,
                 'error': 'Email and password are required'
@@ -798,6 +800,7 @@ def extension_login():
             cursor.close()
             
             if not user:
+                logger.error(f"User not found: {email}")
                 return jsonify({
                     'success': False,
                     'error': 'Invalid email or password'
@@ -805,6 +808,7 @@ def extension_login():
             
             # Verify password
             if not check_password_hash(user[2], password):
+                logger.error(f"Invalid password for user: {email}")
                 return jsonify({
                     'success': False,
                     'error': 'Invalid email or password'
@@ -814,6 +818,8 @@ def extension_login():
             session['user_id'] = user[0]
             session['email'] = user[1]
             session.modified = True
+            
+            logger.info(f"Login successful for user: {email}")
             
             # Set session cookie
             response = make_response(jsonify({
