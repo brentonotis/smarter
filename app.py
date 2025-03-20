@@ -713,52 +713,60 @@ def extension_login():
                 'message': 'Email and password are required.'
             }), 400
 
-        # Attempt login
-        user = User.query.filter_by(email=email).first()
-        if user and user.check_password(password):
-            login_user(user)
-            logger.info(f"User {email} logged in successfully")
-            
-            # Set session data
-            session['user_id'] = user.id
-            session['email'] = user.email
-            session['csrf_token'] = generate_csrf()
-            
-            # Ensure session ID exists
-            if not session.get('_id'):
-                session['_id'] = str(uuid.uuid4())
-            
-            session.modified = True
-            logger.info(f"Session data after login: {dict(session)}")
-            
-            response = jsonify({
-                'status': 'success',
-                'message': 'Login successful',
-                'user': {
-                    'id': user.id,
-                    'email': user.email
-                }
-            })
-            
-            # Set CORS headers
-            response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
-            response.headers.add('Access-Control-Allow-Credentials', 'true')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
-            
-            # Set session cookie
-            session_cookie = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
-            response.headers['Set-Cookie'] = session_cookie
-            logger.info(f"Setting session cookie: {session_cookie}")
-            
-            logger.info(f"Login response headers: {dict(response.headers)}")
-            return response
-            
-        else:
-            logger.warning(f"Failed login attempt for email: {email}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Invalid email or password.'
-            }), 401
+        # Attempt login using psycopg2
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+                user_data = cursor.fetchone()
+                
+                if user_data and check_password_hash(user_data['password_hash'], password):
+                    user = User(user_data['id'], user_data['email'], user_data['password_hash'])
+                    login_user(user)
+                    logger.info(f"User {email} logged in successfully")
+                    
+                    # Set session data
+                    session['user_id'] = user.id
+                    session['email'] = user.email
+                    session['csrf_token'] = generate_csrf()
+                    
+                    # Ensure session ID exists
+                    if not session.get('_id'):
+                        session['_id'] = str(uuid.uuid4())
+                    
+                    session.modified = True
+                    logger.info(f"Session data after login: {dict(session)}")
+                    
+                    response = jsonify({
+                        'status': 'success',
+                        'message': 'Login successful',
+                        'user': {
+                            'id': user.id,
+                            'email': user.email
+                        }
+                    })
+                    
+                    # Set CORS headers
+                    response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+                    response.headers.add('Access-Control-Allow-Credentials', 'true')
+                    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-CSRFToken')
+                    
+                    # Set session cookie
+                    session_cookie = f'smarter_session={session.get("_id")}; Path=/; HttpOnly; Secure; SameSite=None; Domain=smarter-865bc5a924ea.herokuapp.com'
+                    response.headers['Set-Cookie'] = session_cookie
+                    logger.info(f"Setting session cookie: {session_cookie}")
+                    
+                    logger.info(f"Login response headers: {dict(response.headers)}")
+                    return response
+                    
+                else:
+                    logger.warning(f"Failed login attempt for email: {email}")
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Invalid email or password.'
+                    }), 401
+            finally:
+                cursor.close()
 
     except Exception as e:
         logger.error(f"Error during extension login: {str(e)}", exc_info=True)
