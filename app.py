@@ -57,6 +57,9 @@ app.config['SESSION_COOKIE_NAME'] = 'smarter_session'
 app.config['SESSION_COOKIE_SAMESITE_FORCE'] = False  # Allow cross-origin requests
 app.config['SESSION_COOKIE_SAMESITE_LAX'] = False  # Disable SameSite=Lax
 app.config['SESSION_COOKIE_SAMESITE_STRICT'] = False  # Disable SameSite=Strict
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for cross-origin requests
+app.config['SESSION_COOKIE_SECURE'] = True  # Required for SameSite=None
+app.config['SESSION_COOKIE_DOMAIN'] = '.smarter-865bc5a924ea.herokuapp.com'  # Allow subdomains
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -68,6 +71,7 @@ app.config['WTF_CSRF_SECRET_KEY'] = app.secret_key
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
 app.config['WTF_EXEMPT_METHODS'] = ['OPTIONS']  # Exempt OPTIONS requests from CSRF
 app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow non-HTTPS requests for development
+app.config['WTF_CSRF_HEADERS'] = ['X-CSRFToken']  # Allow CSRF token in headers
 
 # Exempt extension endpoints from CSRF
 csrf.exempt(r'/extension_login')
@@ -753,6 +757,8 @@ def extension_login():
                 'error': 'Email and password are required'
             }), 400
             
+        # Get CSRF token from either form data or header
+        csrf_token = request.form.get('csrf_token') or request.headers.get('X-CSRFToken')
         if not csrf_token or csrf_token != session.get('csrf_token'):
             logger.error("CSRF validation failed")
             logger.error(f"Received token: {csrf_token}")
