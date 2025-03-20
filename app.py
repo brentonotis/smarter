@@ -67,6 +67,11 @@ app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_SECRET_KEY'] = app.secret_key
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
 app.config['WTF_EXEMPT_METHODS'] = ['OPTIONS']  # Exempt OPTIONS requests from CSRF
+app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow non-HTTPS requests for development
+
+# Exempt extension endpoints from CSRF
+csrf.exempt(r'/extension_login')
+csrf.exempt(r'/api/extension/*')
 
 # Configure CORS
 CORS(app, 
