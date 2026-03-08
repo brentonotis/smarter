@@ -246,31 +246,10 @@ function renderStructuredResults(container, analysis) {
         html += '<span class="sc-word-count">' + wordCount + ' words</span>';
         html += '</div>';
 
-        // Render each part with its label
-        var partDefs = [
-            { key: 'observation', label: 'Observation', icon: '1' },
-            { key: 'problem', label: 'Problem', icon: '2' },
-            { key: 'credibility', label: 'Credibility', icon: '3' },
-            { key: 'solution', label: 'Solution', icon: '4' },
-            { key: 'ctc', label: 'CTC', icon: '5' }
-        ];
+        // Render as one clean continuous paragraph
+        html += '<div class="sc-outreach-text">' + escapeHtml(fullMessage) + '</div>';
 
-        html += '<div class="sc-outreach-parts">';
-        partDefs.forEach(function (def) {
-            if (outreach[def.key]) {
-                html += '<div class="sc-outreach-part">';
-                html += '<span class="sc-part-num">' + def.icon + '</span>';
-                html += '<div class="sc-part-content">';
-                html += '<span class="sc-part-label">' + def.label + '</span>';
-                html += '<span class="sc-part-text">' + escapeHtml(outreach[def.key]) + '</span>';
-                html += '</div>';
-                html += '</div>';
-            }
-        });
-        html += '</div>';
-
-        // Copy full message button
-        html += '<button class="sc-copy-btn" id="salescopilot-copy-outreach">Copy Full Message</button>';
+        html += '<button class="sc-copy-btn" id="salescopilot-copy-outreach">Copy</button>';
         html += '</div>';
     }
 
