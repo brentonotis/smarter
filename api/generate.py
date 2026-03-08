@@ -1,6 +1,5 @@
 """
 Serverless API endpoint for generating personalized outreach snippets using Claude.
-Deploy to Vercel (or adapt for Cloudflare Workers / AWS Lambda).
 
 Environment variables required:
   ANTHROPIC_API_KEY - Your Anthropic API key
@@ -12,10 +11,13 @@ import os
 from http.server import BaseHTTPRequestHandler
 import urllib.request
 import urllib.parse
+import urllib.error
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 MODEL = "claude-sonnet-4-20250514"
+MAX_TARGETS = 10
+MAX_BODY_BYTES = 50_000
 
 
 def call_claude(system, user_prompt, max_tokens=400):
@@ -38,9 +40,23 @@ def call_claude(system, user_prompt, max_tokens=400):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=60) as resp:
         data = json.loads(resp.read().decode())
     return data["content"][0]["text"].strip()
+
+
+def add_cors_headers(handler):
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+    handler.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+
+def send_json(handler, status, data):
+    handler.send_response(status)
+    add_cors_headers(handler)
+    handler.send_header("Content-Type", "application/json")
+    handler.end_headers()
+    handler.wfile.write(json.dumps(data).encode())
 
 
 def fetch_company_news(company_name):
@@ -120,29 +136,18 @@ SYSTEM_PROMPT = (
 def generate_snippets(targets, company):
     """Call Claude to generate outreach snippets for each target."""
     results = []
-
     for target in targets:
         news_articles = []
         if target.get("type") == "company":
             news_articles = fetch_company_news(target["name"])
-
         prompt = build_prompt(target, company, news_articles)
         snippet = call_claude(SYSTEM_PROMPT, prompt, max_tokens=400)
-
         results.append({
             "name": target["name"],
             "type": target["type"],
             "snippet": snippet,
         })
-
     return results
-
-
-def add_cors_headers(handler):
-    """Add CORS headers to allow cross-origin requests from the frontend."""
-    handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type")
 
 
 class handler(BaseHTTPRequestHandler):
@@ -154,46 +159,26 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             content_length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(content_length))
+            if content_length > MAX_BODY_BYTES:
+                return send_json(self, 413, {"message": "Request body too large"})
 
+            body = json.loads(self.rfile.read(content_length))
             targets = body.get("targets", [])
             company = body.get("company", {})
 
             if not targets:
-                self.send_response(400)
-                add_cors_headers(self)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"message": "No targets provided"}).encode())
-                return
-
+                return send_json(self, 400, {"message": "No targets provided"})
+            if len(targets) > MAX_TARGETS:
+                return send_json(self, 400, {"message": f"Maximum {MAX_TARGETS} targets per request"})
             if not company.get("name") or not company.get("description"):
-                self.send_response(400)
-                add_cors_headers(self)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"message": "Company name and description are required"}).encode())
-                return
+                return send_json(self, 400, {"message": "Company name and description are required"})
 
             results = generate_snippets(targets, company)
-
-            self.send_response(200)
-            add_cors_headers(self)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "success", "results": results}).encode())
+            send_json(self, 200, {"status": "success", "results": results})
 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode() if e.readable() else str(e)
-            self.send_response(502)
-            add_cors_headers(self)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"message": f"Claude API error ({e.code}): {error_body}"}).encode())
+            send_json(self, 502, {"message": f"Claude API error ({e.code}): {error_body}"})
 
         except Exception as e:
-            self.send_response(500)
-            add_cors_headers(self)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"message": f"Internal error: {type(e).__name__}: {str(e)}"}).encode())
+            send_json(self, 500, {"message": f"Internal error: {type(e).__name__}: {str(e)}"})

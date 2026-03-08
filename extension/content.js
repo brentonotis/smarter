@@ -14,8 +14,29 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     }
 });
 
+// ---------------------------------------------------------------------------
+// Page text extraction (runs client-side, so it sees JS-rendered content)
+// ---------------------------------------------------------------------------
+
+function extractPageText(maxChars) {
+    maxChars = maxChars || 6000;
+    // Grab the main content area or fall back to body
+    const root = document.querySelector('main, article, [role="main"]') || document.body;
+    // Clone so we can strip without affecting the live page
+    const clone = root.cloneNode(true);
+    // Remove scripts, styles, nav, footer, hidden elements
+    clone.querySelectorAll('script, style, noscript, nav, footer, header, [aria-hidden="true"], [hidden]').forEach(el => el.remove());
+    let text = (clone.innerText || clone.textContent || '').trim();
+    // Collapse whitespace
+    text = text.replace(/\s+/g, ' ');
+    return text.substring(0, maxChars);
+}
+
+// ---------------------------------------------------------------------------
+// Panel creation
+// ---------------------------------------------------------------------------
+
 function createPanel() {
-    // Remove existing panel
     const existing = document.getElementById('salescopilot-panel');
     if (existing) existing.remove();
 
@@ -39,10 +60,8 @@ function createPanel() {
     panel.appendChild(content);
     document.body.appendChild(panel);
 
-    // Make panel draggable
     makeDraggable(panel, header);
 
-    // Load settings and show appropriate UI
     chrome.storage.local.get(['salescopilot_api_url', 'salescopilot_company'], function (data) {
         if (!data.salescopilot_api_url) {
             showConfigUI(content);
@@ -51,6 +70,10 @@ function createPanel() {
         }
     });
 }
+
+// ---------------------------------------------------------------------------
+// Config UI (first-run)
+// ---------------------------------------------------------------------------
 
 function showConfigUI(container) {
     container.innerHTML = `
@@ -77,12 +100,16 @@ function showConfigUI(container) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Analysis UI — shows spinner then structured results
+// ---------------------------------------------------------------------------
+
 function showAnalysisUI(container, apiUrl, company) {
     const currentUrl = window.location.href;
     container.innerHTML = `
         <div style="padding: 10px;">
-            <p style="color: #666; font-size: 12px; margin-bottom: 8px; word-break: break-all;">
-                Analyzing: ${currentUrl.substring(0, 80)}${currentUrl.length > 80 ? '...' : ''}
+            <p style="color: #666; font-size: 11px; margin-bottom: 8px; word-break: break-all;">
+                ${escapeHtml(currentUrl.substring(0, 80))}${currentUrl.length > 80 ? '...' : ''}
             </p>
             <div id="salescopilot-result" style="margin-top: 10px;">
                 <div style="text-align: center; padding: 20px;">
@@ -93,7 +120,7 @@ function showAnalysisUI(container, apiUrl, company) {
             <div style="margin-top: 12px; border-top: 1px solid #eee; padding-top: 8px;">
                 <button id="salescopilot-reanalyze"
                     style="width: 100%; padding: 6px; background: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                    Re-analyze
+                    ↻ Re-analyze
                 </button>
             </div>
         </div>
@@ -105,6 +132,10 @@ function showAnalysisUI(container, apiUrl, company) {
         analyzeCurrentPage(apiUrl, currentUrl, company);
     });
 }
+
+// ---------------------------------------------------------------------------
+// API call — sends client-extracted page text for best results
+// ---------------------------------------------------------------------------
 
 async function analyzeCurrentPage(apiUrl, pageUrl, company) {
     const resultDiv = document.getElementById('salescopilot-result');
@@ -118,10 +149,16 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
     `;
 
     try {
+        const pageText = extractPageText(6000);
+
         const response = await fetch(apiUrl + '/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: pageUrl, company: company })
+            body: JSON.stringify({
+                url: pageUrl,
+                page_text: pageText,
+                company: company
+            })
         });
 
         if (!response.ok) {
@@ -131,24 +168,101 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
 
         const data = await response.json();
 
-        if (data.status === 'success') {
-            resultDiv.innerHTML = `
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: #333;">
-                    ${escapeHtml(data.analysis)}
-                </div>
-            `;
+        if (data.status === 'success' && data.analysis) {
+            renderStructuredResults(resultDiv, data.analysis);
         } else {
             throw new Error(data.message || 'Analysis failed');
         }
     } catch (error) {
         resultDiv.innerHTML = `
             <div style="color: #dc3545; text-align: center; padding: 10px; font-size: 13px;">
-                <p>Error: ${escapeHtml(error.message)}</p>
+                <p><strong>Error:</strong> ${escapeHtml(error.message)}</p>
                 <p style="margin-top: 8px; color: #666;">Check that your API URL is correct and the server is running.</p>
             </div>
         `;
     }
 }
+
+// ---------------------------------------------------------------------------
+// Render structured analysis results
+// ---------------------------------------------------------------------------
+
+function renderStructuredResults(container, analysis) {
+    // Handle both structured (JSON) and plain-text (fallback) responses
+    if (typeof analysis === 'string') {
+        container.innerHTML = `<div class="sc-section"><div class="sc-text">${escapeHtml(analysis)}</div></div>`;
+        return;
+    }
+
+    let html = '';
+
+    // Overview
+    if (analysis.overview) {
+        html += `
+            <div class="sc-section">
+                <div class="sc-label">Overview</div>
+                <div class="sc-text">${escapeHtml(analysis.overview)}</div>
+            </div>`;
+    }
+
+    // Tags
+    if (analysis.tags && analysis.tags.length > 0) {
+        html += '<div class="sc-tags">';
+        analysis.tags.forEach(tag => {
+            html += `<span class="sc-tag">${escapeHtml(tag)}</span>`;
+        });
+        html += '</div>';
+    }
+
+    // Insights
+    if (analysis.insights && analysis.insights.length > 0) {
+        html += `<div class="sc-section"><div class="sc-label">Key Insights</div><ul class="sc-list">`;
+        analysis.insights.forEach(item => {
+            html += `<li>${escapeHtml(item)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // Pain Points
+    if (analysis.pain_points && analysis.pain_points.length > 0) {
+        html += `<div class="sc-section"><div class="sc-label">Pain Points & Opportunities</div><ul class="sc-list">`;
+        analysis.pain_points.forEach(item => {
+            html += `<li>${escapeHtml(item)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // Outreach Line (with copy button)
+    if (analysis.outreach_line) {
+        html += `
+            <div class="sc-section sc-outreach">
+                <div class="sc-label">Suggested Outreach</div>
+                <div class="sc-outreach-text">${escapeHtml(analysis.outreach_line)}</div>
+                <button class="sc-copy-btn" id="salescopilot-copy-outreach">Copy</button>
+            </div>`;
+    }
+
+    container.innerHTML = html;
+
+    // Wire up copy button
+    const copyBtn = document.getElementById('salescopilot-copy-outreach');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(analysis.outreach_line).then(() => {
+                copyBtn.textContent = 'Copied!';
+                copyBtn.classList.add('sc-copy-success');
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.classList.remove('sc-copy-success');
+                }, 2000);
+            });
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function makeDraggable(panel, handle) {
     let x = 0, y = 0, ox = 0, oy = 0, dragging = false;

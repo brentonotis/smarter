@@ -1,3 +1,5 @@
+/* --- Sales Copilot Extension Panel --- */
+
 #salescopilot-panel {
     position: fixed !important;
     top: 20px !important;
@@ -50,6 +52,7 @@
     max-height: 540px !important;
 }
 
+/* Spinner */
 .salescopilot-spinner {
     width: 24px;
     height: 24px;
@@ -62,4 +65,103 @@
 
 @keyframes salescopilot-spin {
     to { transform: rotate(360deg); }
+}
+
+/* --- Structured result sections --- */
+
+.sc-section {
+    padding: 8px 12px !important;
+    border-bottom: 1px solid #f0f0f0 !important;
+}
+
+.sc-section:last-child {
+    border-bottom: none !important;
+}
+
+.sc-label {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    color: #007bff !important;
+    margin-bottom: 4px !important;
+}
+
+.sc-text {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    color: #333 !important;
+}
+
+/* Tags */
+.sc-tags {
+    padding: 4px 12px 6px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+}
+
+.sc-tag {
+    display: inline-block !important;
+    padding: 2px 8px !important;
+    background: #e8f0fe !important;
+    color: #1a56db !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+}
+
+/* Bullet lists */
+.sc-list {
+    margin: 0 !important;
+    padding-left: 18px !important;
+    list-style: disc !important;
+}
+
+.sc-list li {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+    color: #444 !important;
+    margin-bottom: 3px !important;
+}
+
+/* Outreach suggestion card */
+.sc-outreach {
+    background: #f8fafb !important;
+    border-radius: 0 0 10px 10px !important;
+    position: relative !important;
+}
+
+.sc-outreach-text {
+    font-size: 13px !important;
+    line-height: 1.6 !important;
+    color: #222 !important;
+    font-style: italic !important;
+    padding-right: 50px !important;
+}
+
+.sc-copy-btn {
+    position: absolute !important;
+    top: 8px !important;
+    right: 10px !important;
+    padding: 3px 10px !important;
+    font-size: 11px !important;
+    background: #007bff !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    transition: background 0.15s !important;
+}
+
+.sc-copy-btn:hover {
+    background: #0056b3 !important;
+}
+
+.sc-copy-success {
+    background: #28a745 !important;
+}
+
+.sc-copy-success:hover {
+    background: #218838 !important;
 }
