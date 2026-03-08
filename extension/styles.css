@@ -125,33 +125,97 @@
     margin-bottom: 3px !important;
 }
 
-/* Outreach suggestion card */
-.sc-outreach {
+/* --- 5-Part Outreach Card --- */
+
+.sc-outreach-card {
     background: #f8fafb !important;
-    border-radius: 0 0 10px 10px !important;
+    padding: 10px 12px !important;
     position: relative !important;
 }
 
-.sc-outreach-text {
-    font-size: 13px !important;
-    line-height: 1.6 !important;
-    color: #222 !important;
-    font-style: italic !important;
-    padding-right: 50px !important;
+.sc-outreach-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 8px !important;
 }
 
+.sc-word-count {
+    font-size: 10px !important;
+    color: #888 !important;
+    font-weight: 500 !important;
+    background: #eee !important;
+    padding: 1px 6px !important;
+    border-radius: 8px !important;
+}
+
+/* Individual outreach parts */
+.sc-outreach-parts {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    margin-bottom: 10px !important;
+}
+
+.sc-outreach-part {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+}
+
+.sc-part-num {
+    flex-shrink: 0 !important;
+    width: 18px !important;
+    height: 18px !important;
+    background: #007bff !important;
+    color: white !important;
+    border-radius: 50% !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-top: 1px !important;
+}
+
+.sc-part-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+
+.sc-part-label {
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
+    color: #999 !important;
+    display: block !important;
+    line-height: 1 !important;
+    margin-bottom: 1px !important;
+}
+
+.sc-part-text {
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+    color: #222 !important;
+    display: block !important;
+}
+
+/* Copy button */
 .sc-copy-btn {
-    position: absolute !important;
-    top: 8px !important;
-    right: 10px !important;
-    padding: 3px 10px !important;
-    font-size: 11px !important;
+    display: block !important;
+    width: 100% !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
     background: #007bff !important;
     color: white !important;
     border: none !important;
-    border-radius: 4px !important;
+    border-radius: 5px !important;
     cursor: pointer !important;
     transition: background 0.15s !important;
+    text-align: center !important;
+    position: static !important;
 }
 
 .sc-copy-btn:hover {

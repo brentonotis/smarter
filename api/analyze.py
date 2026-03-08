@@ -89,37 +89,64 @@ def fetch_page_text(url):
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = (
-    "You are a sales intelligence analyst. You analyze web pages and extract "
-    "actionable insights for sales professionals. You MUST respond with valid "
+    "You are an elite B2B sales copywriter. You write ultra-short cold outreach "
+    "messages (25-50 words) at a 5th-grade reading level. No jargon, no fluff, "
+    "no filler words. Every word earns its place. You MUST respond with valid "
     "JSON only — no markdown, no commentary outside the JSON."
 )
 
 
-def build_analyze_prompt(url, page_text, company):
+def build_analyze_prompt(url, page_text, company, attempt=0):
     company_context = ""
     if company and company.get("name"):
         company_context = f"""
-Your Company Context (the seller):
-  Name: {company['name']}
-  Description: {company.get('description', 'N/A')}
+Seller Context:
+  Company: {company['name']}
+  What they do: {company.get('description', 'N/A')}
   Target Industries: {company.get('target_industries', 'N/A')}
 """
+
+    # Vary the angle on each regeneration to avoid repeating the same message
+    angle_instructions = ""
+    if attempt > 0:
+        angles = [
+            "Focus on a DIFFERENT observation than before. Try a hiring signal or team growth angle.",
+            "Focus on a DIFFERENT observation than before. Try a competitive landscape or market timing angle.",
+            "Focus on a DIFFERENT observation than before. Try a technology stack or product launch angle.",
+            "Focus on a DIFFERENT observation than before. Try a leadership change or company milestone angle.",
+            "Focus on a DIFFERENT observation than before. Try an industry trend or customer pain angle.",
+        ]
+        angle_instructions = f"\nIMPORTANT: {angles[attempt % len(angles)]}\n"
 
     return f"""Analyze this web page and return a JSON object with exactly these keys:
 
 {{
-  "overview": "1-2 sentence summary of who/what this page is about",
+  "overview": "1 sentence: who is this company/person and what do they do",
+  "tags": ["tag1", "tag2", "tag3"],
   "insights": ["insight 1", "insight 2", "insight 3"],
-  "pain_points": ["pain point or opportunity 1", "pain point or opportunity 2"],
-  "outreach_line": "A ready-to-use opening line for a sales email or LinkedIn message",
-  "tags": ["tag1", "tag2"]
+  "outreach": {{
+    "observation": "1 sentence: a specific, personalized detail showing you did research (recent news, role change, funding, hiring, product launch)",
+    "problem": "1 sentence: connect that observation to a pain point or opportunity relevant to their role",
+    "credibility": "1 sentence: briefly state how the seller has solved this for similar companies (social proof)",
+    "solution": "1 sentence: quick explanation of the seller's unique approach or value",
+    "ctc": "1 open-ended question that starts a dialogue — easy to reply to, NOT asking to book a meeting (e.g., 'Curious if this resonates?', 'Is this on your radar?', 'How are you thinking about this?')"
+  }}
 }}
 
-Rules:
-- "insights" should contain 2-4 bullets of sales-relevant intelligence (funding, growth, tech stack, hiring signals, recent news, leadership changes)
-- "pain_points" should contain 1-3 potential problems or opportunities the seller could address
-- "outreach_line" should be specific, personalized, and reference something concrete from the page
-- "tags" should contain 2-4 short labels (e.g., "SaaS", "Series B", "Hiring", "Enterprise")
+STRICT RULES FOR THE OUTREACH (THESE ARE HARD LIMITS):
+- The ENTIRE outreach (all 5 parts combined) MUST be 25-50 words total. NOT 50+. Count each word before responding. If over 50, cut words until you're under.
+- Each part should be 5-10 words. Aim for 8 words average per part (5 parts x 8 words = 40 words).
+- Write at a 5th-grade reading level. Simple words. Short sentences. No jargon.
+- No filler: "I hope this finds you well", "I wanted to reach out", "I noticed that"
+- No buzzwords: "synergy", "leverage", "optimize", "streamline", "cutting-edge", "empower"
+- The CTC must be easy to answer — NOT "Can we schedule a call?" or "Do you have 15 minutes?"
+- Be specific. Reference real details from the page.
+- Shorter is ALWAYS better. Every word must earn its place.
+{angle_instructions}
+RULES FOR OTHER FIELDS:
+- "overview" should be 1 concise sentence
+- "tags" should be 2-4 short labels (e.g., "SaaS", "Series B", "Hiring", "Enterprise")
+- "insights" should be 2-4 bullets of sales intelligence (funding, growth, hiring, tech stack, news, leadership)
 - Return ONLY the JSON object, nothing else
 
 URL: {url}
@@ -129,10 +156,10 @@ Page Content:
 {company_context}"""
 
 
-def analyze_page(url, page_text, company):
+def analyze_page(url, page_text, company, attempt=0):
     """Call Claude and parse the structured JSON response."""
-    prompt = build_analyze_prompt(url, page_text, company)
-    raw = call_claude(SYSTEM_PROMPT, prompt, max_tokens=600)
+    prompt = build_analyze_prompt(url, page_text, company, attempt)
+    raw = call_claude(SYSTEM_PROMPT, prompt, max_tokens=700)
 
     # Strip ```json ... ``` markers if present
     cleaned = raw.strip()
@@ -146,10 +173,26 @@ def analyze_page(url, page_text, company):
         result = {
             "overview": cleaned[:300],
             "insights": [],
-            "pain_points": [],
-            "outreach_line": "",
             "tags": [],
+            "outreach": {
+                "observation": "",
+                "problem": "",
+                "credibility": "",
+                "solution": "",
+                "ctc": "",
+            },
         }
+
+    # Ensure outreach is structured (handle old-format responses gracefully)
+    if "outreach_line" in result and "outreach" not in result:
+        result["outreach"] = {
+            "observation": result.pop("outreach_line", ""),
+            "problem": "",
+            "credibility": "",
+            "solution": "",
+            "ctc": "",
+        }
+
     return result
 
 
@@ -183,7 +226,8 @@ class handler(BaseHTTPRequestHandler):
             if not page_text:
                 page_text = "(Could not fetch page content; analyze based on URL alone)"
 
-            analysis = analyze_page(url, page_text, company)
+            attempt = body.get("attempt", 0)
+            analysis = analyze_page(url, page_text, company, attempt)
             send_json(self, 200, {"status": "success", "analysis": analysis, "url": url})
 
         except urllib.error.HTTPError as e:

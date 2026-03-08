@@ -1,5 +1,8 @@
 // --- Sales Copilot Content Script ---
 
+// Track regeneration attempts so each re-analyze gets a fresh angle
+let _scAttempt = 0;
+
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     if (request.action === 'togglePanel') {
         const panel = document.getElementById('salescopilot-panel');
@@ -7,6 +10,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             panel.remove();
             sendResponse({ success: true, action: 'removed' });
         } else {
+            _scAttempt = 0; // reset on new panel open
             createPanel();
             sendResponse({ success: true, action: 'created' });
         }
@@ -15,19 +19,15 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 });
 
 // ---------------------------------------------------------------------------
-// Page text extraction (runs client-side, so it sees JS-rendered content)
+// Page text extraction (runs client-side, sees JS-rendered content)
 // ---------------------------------------------------------------------------
 
 function extractPageText(maxChars) {
     maxChars = maxChars || 6000;
-    // Grab the main content area or fall back to body
     const root = document.querySelector('main, article, [role="main"]') || document.body;
-    // Clone so we can strip without affecting the live page
     const clone = root.cloneNode(true);
-    // Remove scripts, styles, nav, footer, hidden elements
     clone.querySelectorAll('script, style, noscript, nav, footer, header, [aria-hidden="true"], [hidden]').forEach(el => el.remove());
     let text = (clone.innerText || clone.textContent || '').trim();
-    // Collapse whitespace
     text = text.replace(/\s+/g, ' ');
     return text.substring(0, maxChars);
 }
@@ -101,7 +101,7 @@ function showConfigUI(container) {
 }
 
 // ---------------------------------------------------------------------------
-// Analysis UI — shows spinner then structured results
+// Analysis UI
 // ---------------------------------------------------------------------------
 
 function showAnalysisUI(container, apiUrl, company) {
@@ -120,7 +120,7 @@ function showAnalysisUI(container, apiUrl, company) {
             <div style="margin-top: 12px; border-top: 1px solid #eee; padding-top: 8px;">
                 <button id="salescopilot-reanalyze"
                     style="width: 100%; padding: 6px; background: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 12px;">
-                    ↻ Re-analyze
+                    &#x21bb; New Angle
                 </button>
             </div>
         </div>
@@ -129,12 +129,13 @@ function showAnalysisUI(container, apiUrl, company) {
     analyzeCurrentPage(apiUrl, currentUrl, company);
 
     document.getElementById('salescopilot-reanalyze').addEventListener('click', function () {
+        _scAttempt++;
         analyzeCurrentPage(apiUrl, currentUrl, company);
     });
 }
 
 // ---------------------------------------------------------------------------
-// API call — sends client-extracted page text for best results
+// API call
 // ---------------------------------------------------------------------------
 
 async function analyzeCurrentPage(apiUrl, pageUrl, company) {
@@ -157,7 +158,8 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
             body: JSON.stringify({
                 url: pageUrl,
                 page_text: pageText,
-                company: company
+                company: company,
+                attempt: _scAttempt
             })
         });
 
@@ -177,20 +179,19 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
         resultDiv.innerHTML = `
             <div style="color: #dc3545; text-align: center; padding: 10px; font-size: 13px;">
                 <p><strong>Error:</strong> ${escapeHtml(error.message)}</p>
-                <p style="margin-top: 8px; color: #666;">Check that your API URL is correct and the server is running.</p>
+                <p style="margin-top: 8px; color: #666;">Check your API URL and that the server is running.</p>
             </div>
         `;
     }
 }
 
 // ---------------------------------------------------------------------------
-// Render structured analysis results
+// Render structured results with 5-part outreach
 // ---------------------------------------------------------------------------
 
 function renderStructuredResults(container, analysis) {
-    // Handle both structured (JSON) and plain-text (fallback) responses
     if (typeof analysis === 'string') {
-        container.innerHTML = `<div class="sc-section"><div class="sc-text">${escapeHtml(analysis)}</div></div>`;
+        container.innerHTML = '<div class="sc-section"><div class="sc-text">' + escapeHtml(analysis) + '</div></div>';
         return;
     }
 
@@ -198,60 +199,117 @@ function renderStructuredResults(container, analysis) {
 
     // Overview
     if (analysis.overview) {
-        html += `
-            <div class="sc-section">
-                <div class="sc-label">Overview</div>
-                <div class="sc-text">${escapeHtml(analysis.overview)}</div>
-            </div>`;
+        html += '<div class="sc-section">' +
+            '<div class="sc-label">Overview</div>' +
+            '<div class="sc-text">' + escapeHtml(analysis.overview) + '</div>' +
+            '</div>';
     }
 
     // Tags
     if (analysis.tags && analysis.tags.length > 0) {
         html += '<div class="sc-tags">';
-        analysis.tags.forEach(tag => {
-            html += `<span class="sc-tag">${escapeHtml(tag)}</span>`;
+        analysis.tags.forEach(function (tag) {
+            html += '<span class="sc-tag">' + escapeHtml(tag) + '</span>';
         });
         html += '</div>';
     }
 
     // Insights
     if (analysis.insights && analysis.insights.length > 0) {
-        html += `<div class="sc-section"><div class="sc-label">Key Insights</div><ul class="sc-list">`;
-        analysis.insights.forEach(item => {
-            html += `<li>${escapeHtml(item)}</li>`;
+        html += '<div class="sc-section"><div class="sc-label">Key Insights</div><ul class="sc-list">';
+        analysis.insights.forEach(function (item) {
+            html += '<li>' + escapeHtml(item) + '</li>';
         });
         html += '</ul></div>';
     }
 
-    // Pain Points
-    if (analysis.pain_points && analysis.pain_points.length > 0) {
-        html += `<div class="sc-section"><div class="sc-label">Pain Points & Opportunities</div><ul class="sc-list">`;
-        analysis.pain_points.forEach(item => {
-            html += `<li>${escapeHtml(item)}</li>`;
+    // 5-Part Outreach Message
+    var outreach = analysis.outreach || {};
+    var hasOutreach = outreach.observation || outreach.problem || outreach.credibility || outreach.solution || outreach.ctc;
+
+    if (hasOutreach) {
+        // Build the full message for copy
+        var parts = [];
+        if (outreach.observation) parts.push(outreach.observation);
+        if (outreach.problem) parts.push(outreach.problem);
+        if (outreach.credibility) parts.push(outreach.credibility);
+        if (outreach.solution) parts.push(outreach.solution);
+        if (outreach.ctc) parts.push(outreach.ctc);
+        var fullMessage = parts.join(' ');
+
+        // Count words
+        var wordCount = fullMessage.split(/\s+/).filter(function (w) { return w.length > 0; }).length;
+
+        html += '<div class="sc-section sc-outreach-card">';
+        html += '<div class="sc-outreach-header">';
+        html += '<div class="sc-label">Outreach Message</div>';
+        html += '<span class="sc-word-count">' + wordCount + ' words</span>';
+        html += '</div>';
+
+        // Render each part with its label
+        var partDefs = [
+            { key: 'observation', label: 'Observation', icon: '1' },
+            { key: 'problem', label: 'Problem', icon: '2' },
+            { key: 'credibility', label: 'Credibility', icon: '3' },
+            { key: 'solution', label: 'Solution', icon: '4' },
+            { key: 'ctc', label: 'CTC', icon: '5' }
+        ];
+
+        html += '<div class="sc-outreach-parts">';
+        partDefs.forEach(function (def) {
+            if (outreach[def.key]) {
+                html += '<div class="sc-outreach-part">';
+                html += '<span class="sc-part-num">' + def.icon + '</span>';
+                html += '<div class="sc-part-content">';
+                html += '<span class="sc-part-label">' + def.label + '</span>';
+                html += '<span class="sc-part-text">' + escapeHtml(outreach[def.key]) + '</span>';
+                html += '</div>';
+                html += '</div>';
+            }
         });
-        html += '</ul></div>';
+        html += '</div>';
+
+        // Copy full message button
+        html += '<button class="sc-copy-btn" id="salescopilot-copy-outreach">Copy Full Message</button>';
+        html += '</div>';
     }
 
-    // Outreach Line (with copy button)
-    if (analysis.outreach_line) {
-        html += `
-            <div class="sc-section sc-outreach">
-                <div class="sc-label">Suggested Outreach</div>
-                <div class="sc-outreach-text">${escapeHtml(analysis.outreach_line)}</div>
-                <button class="sc-copy-btn" id="salescopilot-copy-outreach">Copy</button>
-            </div>`;
+    // Legacy fallback: outreach_line (old format)
+    if (!hasOutreach && analysis.outreach_line) {
+        html += '<div class="sc-section sc-outreach-card">';
+        html += '<div class="sc-label">Outreach Message</div>';
+        html += '<div class="sc-text">' + escapeHtml(analysis.outreach_line) + '</div>';
+        html += '<button class="sc-copy-btn" id="salescopilot-copy-outreach">Copy</button>';
+        html += '</div>';
     }
 
     container.innerHTML = html;
 
     // Wire up copy button
-    const copyBtn = document.getElementById('salescopilot-copy-outreach');
-    if (copyBtn) {
+    var copyBtn = document.getElementById('salescopilot-copy-outreach');
+    if (copyBtn && hasOutreach) {
         copyBtn.addEventListener('click', function () {
-            navigator.clipboard.writeText(analysis.outreach_line).then(() => {
+            var parts = [];
+            if (outreach.observation) parts.push(outreach.observation);
+            if (outreach.problem) parts.push(outreach.problem);
+            if (outreach.credibility) parts.push(outreach.credibility);
+            if (outreach.solution) parts.push(outreach.solution);
+            if (outreach.ctc) parts.push(outreach.ctc);
+            navigator.clipboard.writeText(parts.join(' ')).then(function () {
                 copyBtn.textContent = 'Copied!';
                 copyBtn.classList.add('sc-copy-success');
-                setTimeout(() => {
+                setTimeout(function () {
+                    copyBtn.textContent = 'Copy Full Message';
+                    copyBtn.classList.remove('sc-copy-success');
+                }, 2000);
+            });
+        });
+    } else if (copyBtn && analysis.outreach_line) {
+        copyBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(analysis.outreach_line).then(function () {
+                copyBtn.textContent = 'Copied!';
+                copyBtn.classList.add('sc-copy-success');
+                setTimeout(function () {
                     copyBtn.textContent = 'Copy';
                     copyBtn.classList.remove('sc-copy-success');
                 }, 2000);
