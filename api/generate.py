@@ -10,10 +10,37 @@ Environment variables required:
 import json
 import os
 from http.server import BaseHTTPRequestHandler
-import anthropic
 import urllib.request
 import urllib.parse
-from datetime import datetime
+
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+MODEL = "claude-sonnet-4-20250514"
+
+
+def call_claude(system, user_prompt, max_tokens=400):
+    """Call the Anthropic Messages API directly via urllib."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    payload = json.dumps({
+        "model": MODEL,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user_prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        ANTHROPIC_API_URL,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read().decode())
+    return data["content"][0]["text"].strip()
 
 
 def fetch_company_news(company_name):
@@ -81,9 +108,17 @@ Requirements:
 - Value propositions should be realistic and based on the company's actual capabilities"""
 
 
+SYSTEM_PROMPT = (
+    "You are a data-driven sales professional who creates concise, impactful "
+    "outreach messages. You focus on specific metrics, recent news, and concrete "
+    "value propositions. Your messages are short, direct, and designed for busy "
+    "executives. You always cite sources when available and make realistic claims "
+    "based on actual capabilities."
+)
+
+
 def generate_snippets(targets, company):
     """Call Claude to generate outreach snippets for each target."""
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     results = []
 
     for target in targets:
@@ -92,15 +127,7 @@ def generate_snippets(targets, company):
             news_articles = fetch_company_news(target["name"])
 
         prompt = build_prompt(target, company, news_articles)
-
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=400,
-            system="You are a data-driven sales professional who creates concise, impactful outreach messages. You focus on specific metrics, recent news, and concrete value propositions. Your messages are short, direct, and designed for busy executives. You always cite sources when available and make realistic claims based on actual capabilities.",
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        snippet = message.content[0].text.strip()
+        snippet = call_claude(SYSTEM_PROMPT, prompt, max_tokens=400)
 
         results.append({
             "name": target["name"],
@@ -156,16 +183,17 @@ class handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "success", "results": results}).encode())
 
-        except anthropic.APIError as e:
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.readable() else str(e)
             self.send_response(502)
             add_cors_headers(self)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"message": f"Claude API error: {str(e)}"}).encode())
+            self.wfile.write(json.dumps({"message": f"Claude API error ({e.code}): {error_body}"}).encode())
 
         except Exception as e:
             self.send_response(500)
             add_cors_headers(self)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"message": f"Internal error: {str(e)}"}).encode())
+            self.wfile.write(json.dumps({"message": f"Internal error: {type(e).__name__}: {str(e)}"}).encode())

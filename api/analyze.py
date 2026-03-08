@@ -9,8 +9,37 @@ Environment variables required:
 import json
 import os
 from http.server import BaseHTTPRequestHandler
-import anthropic
 import urllib.request
+import urllib.error
+
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+MODEL = "claude-sonnet-4-20250514"
+
+
+def call_claude(system, user_prompt, max_tokens=500):
+    """Call the Anthropic Messages API directly via urllib."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    payload = json.dumps({
+        "model": MODEL,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user_prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        ANTHROPIC_API_URL,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read().decode())
+    return data["content"][0]["text"].strip()
 
 
 def fetch_page_text(url):
@@ -37,8 +66,6 @@ def fetch_page_text(url):
 
 def analyze_page(url, page_text, company):
     """Use Claude to analyze the page and generate sales-relevant insights."""
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-
     company_context = ""
     if company and company.get("name"):
         company_context = f"""
@@ -64,14 +91,12 @@ Provide a brief analysis including:
 
 Keep your response concise and actionable."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=500,
-        system="You are a sales intelligence analyst. You analyze web pages and extract insights that help sales professionals craft personalized outreach. Be specific, concise, and focus on actionable intelligence.",
-        messages=[{"role": "user", "content": prompt}],
+    system = (
+        "You are a sales intelligence analyst. You analyze web pages and extract "
+        "insights that help sales professionals craft personalized outreach. Be "
+        "specific, concise, and focus on actionable intelligence."
     )
-
-    return message.content[0].text.strip()
+    return call_claude(system, prompt, max_tokens=500)
 
 
 def add_cors_headers(handler):
@@ -120,16 +145,17 @@ class handler(BaseHTTPRequestHandler):
                 "url": url
             }).encode())
 
-        except anthropic.APIError as e:
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.readable() else str(e)
             self.send_response(502)
             add_cors_headers(self)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"message": f"Claude API error: {str(e)}"}).encode())
+            self.wfile.write(json.dumps({"message": f"Claude API error ({e.code}): {error_body}"}).encode())
 
         except Exception as e:
             self.send_response(500)
             add_cors_headers(self)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"message": f"Internal error: {str(e)}"}).encode())
+            self.wfile.write(json.dumps({"message": f"Internal error: {type(e).__name__}: {str(e)}"}).encode())
