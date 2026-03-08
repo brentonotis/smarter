@@ -1,0 +1,50 @@
+body {
+    background-color: #f5f7fa;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.target-item {
+    padding: 8px 12px;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: #f8f9fa;
+}
+
+.result-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: #fff;
+}
+
+.result-card .snippet-text {
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+
+.btn-copy {
+    font-size: 0.8rem;
+}
+
+#generateBtn.loading .spinner-border {
+    display: inline-block !important;
+}
+
+#generateBtn .spinner-border {
+    display: none;
+}
+
+.config-saved {
+    border-left: 3px solid #28a745;
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Copilot - Personalized Outreach Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Sales Copilot</a>
+            <div class="navbar-text text-white" id="navStatus"></div>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+        <!-- API Configuration -->
+        <div class="card mb-4" id="configCard">
+            <div class="card-body">
+                <h5 class="card-title">API Configuration</h5>
+                <p class="card-text text-muted">Enter your serverless API endpoint to enable snippet generation.</p>
+                <div class="row g-2 align-items-end">
+                    <div class="col">
+                        <label for="apiUrl" class="form-label">API Base URL</label>
+                        <input type="url" class="form-control" id="apiUrl" placeholder="https://your-vercel-app.vercel.app">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-primary" id="saveConfig">Save</button>
+                    </div>
+                </div>
+                <div class="form-text">This is the URL where your serverless API functions are deployed.</div>
+            </div>
+        </div>
+
+        <!-- Your Company Information -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Your Company Information</h5>
+                <p class="card-text text-muted">Enter information about your company to generate relevant outreach snippets.</p>
+                <form id="companyForm">
+                    <div class="mb-3">
+                        <label for="companyName" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="companyName" placeholder="Enter your company name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="companyDescription" class="form-label">Company Description</label>
+                        <textarea class="form-control" id="companyDescription" rows="3" placeholder="Describe what your company does, your value proposition, and key differentiators"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="targetIndustries" class="form-label">Target Industries</label>
+                        <input type="text" class="form-control" id="targetIndustries" placeholder="e.g., Technology, Healthcare, Finance">
+                    </div>
+                    <button type="button" class="btn btn-primary" id="saveCompany">Save Company Info</button>
+                    <span id="companySaveStatus" class="ms-2 text-success" style="display:none;">Saved!</span>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Targets -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add Companies / People</h5>
+                <p class="card-text text-muted">Enter the names of companies or people for personalized outreach snippets.</p>
+                <form id="targetForm">
+                    <div class="row g-2 align-items-end">
+                        <div class="col">
+                            <label for="targetName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="targetName" placeholder="Enter company or person name">
+                        </div>
+                        <div class="col-auto">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="targetType" id="companyType" value="company" checked>
+                                <label class="form-check-label" for="companyType">Company</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="targetType" id="personType" value="person">
+                                <label class="form-check-label" for="personType">Person</label>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-primary" id="addTarget">Add</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Target List -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Target List</h5>
+                <div id="targetList" class="mb-3">
+                    <div class="text-muted">No targets added yet</div>
+                </div>
+                <button type="button" class="btn btn-success" id="generateBtn" disabled>
+                    Generate Snippets
+                </button>
+                <span id="generateStatus" class="ms-2 text-muted" style="display:none;"></span>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card mb-4" id="resultsCard" style="display:none;">
+            <div class="card-body">
+                <h5 class="card-title">Results</h5>
+                <div id="resultsContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,35 +1,48 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const toggleButton = document.getElementById('togglePanel');
+document.addEventListener('DOMContentLoaded', function () {
+    const apiUrlInput = document.getElementById('apiUrl');
+    const saveBtn = document.getElementById('saveBtn');
+    const toggleBtn = document.getElementById('toggleBtn');
     const statusDiv = document.getElementById('status');
 
-    // Check if user is logged in
-    chrome.storage.local.get(['smarter_session'], function(result) {
-        if (result.smarter_session && result.smarter_session.user) {
-            statusDiv.textContent = `Logged in as ${result.smarter_session.user.email}`;
+    // Load saved settings
+    chrome.storage.local.get(['salescopilot_api_url'], function (data) {
+        if (data.salescopilot_api_url) {
+            apiUrlInput.value = data.salescopilot_api_url;
+            statusDiv.textContent = 'API configured';
+            statusDiv.className = 'saved';
         } else {
-            statusDiv.textContent = 'Not logged in';
+            statusDiv.textContent = 'Not configured';
         }
     });
 
-    toggleButton.addEventListener('click', function() {
-        console.log("Toggle button clicked");
-        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    // Save settings
+    saveBtn.addEventListener('click', function () {
+        const url = apiUrlInput.value.trim().replace(/\/+$/, '');
+        if (!url) {
+            statusDiv.textContent = 'Please enter a valid URL';
+            statusDiv.className = '';
+            return;
+        }
+        chrome.storage.local.set({ salescopilot_api_url: url }, function () {
+            statusDiv.textContent = 'Settings saved!';
+            statusDiv.className = 'saved';
+        });
+    });
+
+    // Toggle panel on current page
+    toggleBtn.addEventListener('click', function () {
+        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             if (tabs[0]) {
-                console.log("Sending toggle message to tab:", tabs[0].id);
-                chrome.tabs.sendMessage(tabs[0].id, {action: 'togglePanel'}, function(response) {
+                chrome.tabs.sendMessage(tabs[0].id, { action: 'togglePanel' }, function (response) {
                     if (chrome.runtime.lastError) {
-                        console.error('Error:', chrome.runtime.lastError);
-                        statusDiv.textContent = 'Error: Could not toggle panel';
-                    } else if (response && response.success) {
-                        statusDiv.textContent = 'Panel toggled successfully';
+                        statusDiv.textContent = 'Error: ' + chrome.runtime.lastError.message;
+                        statusDiv.className = '';
                     } else {
-                        statusDiv.textContent = 'Panel toggle failed';
+                        statusDiv.textContent = 'Panel toggled';
+                        statusDiv.className = 'saved';
                     }
                 });
-            } else {
-                console.error('No active tab found');
-                statusDiv.textContent = 'Error: No active tab found';
             }
         });
     });
-}); 
+});

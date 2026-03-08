@@ -1,18 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Smarter Assistant",
-  "version": "1.0",
-  "description": "AI-powered assistant for web pages",
+  "name": "Sales Copilot",
+  "version": "2.0",
+  "description": "AI-powered sales assistant — analyze any web page for outreach insights",
   "permissions": [
     "activeTab",
-    "storage",
-    "tabs",
-    "cookies",
-    "scripting"
-  ],
-  "host_permissions": [
-    "https://smarter-865bc5a924ea.herokuapp.com/*",
-    "https://en.wikipedia.org/*"
+    "storage"
   ],
   "action": {},
   "content_scripts": [
@@ -26,4 +19,4 @@
   "background": {
     "service_worker": "background.js"
   }
-} 
+}
