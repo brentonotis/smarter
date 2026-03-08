@@ -85,6 +85,56 @@ def fetch_page_text(url):
 
 
 # ---------------------------------------------------------------------------
+# Case study knowledge base — real metrics for credibility statements
+# ---------------------------------------------------------------------------
+
+CASE_STUDIES = """
+CASE STUDY 1: Green Home Solutions (Mold Remediation)
+- 200 franchise locations, 60 franchisees, 50+ employees
+- Won 5 Franchisee Satisfaction Awards
+- Pain: managing lead capture, scheduling, invoicing across distributed locations
+- Result: eliminated workflow bottlenecks, enhanced vendor integration via open API
+- Quote (Al Winnick, COO): "The people made it an obvious choice. We knew the team would support us not only launching, but as we grow."
+
+CASE STUDY 2: Cabinet IQ (Cabinet & Countertop Remodeling)
+- Grew from 4 to 6 locations within 11 months of launch
+- Consolidated 5 separate software platforms into 1 unified CRM
+- Pain: unmanageable operations across five separate tools
+- Result: unified scheduling, sales automation, texting, QuickBooks integration, mobile access
+- Quote (Jacob Collums, VP Franchise Development): "ServiceMinder was able to solve problems we didn't even know we had!"
+
+CASE STUDY 3: Kitchen Solvers (Kitchen & Bathroom Remodeling)
+- Grew from 20 to 42 locations in 3 years (110% growth)
+- Pain: outgrown existing CRM, lacked scalability for expanding franchise network
+- Result: streamlined workflows, improved customer service, contact management, email campaigns, proposal creation, scheduling
+- Quote (Joanne DuCharme, Onboarding Specialist): "I have been amazed at the helpfulness of the client success team."
+
+CASE STUDY 4: Mosquito Squad (Pest & Mosquito Control, Authority Brands)
+- 116 locations, 116 franchise owners
+- Tripled business efficiency
+- 5 years on the platform
+- Pain: manual, non-digital workflows; lack of consistency across locations
+- Result: dispatch/scheduling improvements, call tracking, texting, reputation management, digital marketing
+- Quote (Hugh Jones, Director of Product, Authority Brands): "Our franchise owners depend on ServiceMinder to communicate with clients while improving their daily service delivery."
+
+CASE STUDY 5: Home Clean Heroes (Cleaning)
+- 17 franchise locations, 160+ field users
+- 92% of business from recurring clients
+- 5+ years on the platform
+- Pain: previous system was designed for pest control, not cleaning — created admin obstacles
+- Result: streamlined scheduling, automated routine tasks, real-time analytics, reduced admin overhead
+- Quote (Brittany Potter, Operations Manager): "It's not just about the software—it's about the partnership."
+
+CASE STUDY 6: Empower Brands (Multi-Brand Home & Commercial Services)
+- 7 brands on the platform, 292+ franchisees, 1,300+ total users
+- 10+ years using the platform
+- Pain: needed standardization with brand-specific flexibility across hundreds of locations
+- Result: boosted operational efficiency, accelerated franchisee onboarding, smarter cross-brand scaling
+- Quote (Erich Johnston, Franchise Technology Solutions Manager): "Other platforms didn't understand our need for standardized reporting, onboarding, and multi-location visibility. ServiceMinder gets it."
+- Quote: "It was literally built by a franchisee, for franchisees."
+"""
+
+# ---------------------------------------------------------------------------
 # Prompt & analysis
 # ---------------------------------------------------------------------------
 
@@ -127,11 +177,14 @@ Seller Context:
   "outreach": {{
     "observation": "1 sentence: a specific, personalized detail showing you did research (recent news, role change, funding, hiring, product launch)",
     "problem": "1 sentence: connect that observation to a pain point or opportunity relevant to their role",
-    "credibility": "1 sentence: briefly state how the seller has solved this for similar companies (social proof)",
+    "credibility": "1 sentence: cite a REAL result from the case studies below — use the specific company name, metric, and outcome that is MOST relevant to the prospect's industry or pain point",
     "solution": "1 sentence: quick explanation of the seller's unique approach or value",
     "ctc": "1 open-ended question that starts a dialogue — easy to reply to, NOT asking to book a meeting (e.g., 'Curious if this resonates?', 'Is this on your radar?', 'How are you thinking about this?')"
   }}
 }}
+
+SELLER'S PROVEN RESULTS (use these for the credibility sentence — pick the most relevant one):
+{CASE_STUDIES}
 
 STRICT RULES FOR THE OUTREACH (THESE ARE HARD LIMITS):
 - The ENTIRE outreach (all 5 parts combined) MUST be 25-50 words total. NOT 50+. Count each word before responding. If over 50, cut words until you're under.
@@ -141,6 +194,7 @@ STRICT RULES FOR THE OUTREACH (THESE ARE HARD LIMITS):
 - No buzzwords: "synergy", "leverage", "optimize", "streamline", "cutting-edge", "empower"
 - The CTC must be easy to answer — NOT "Can we schedule a call?" or "Do you have 15 minutes?"
 - Be specific. Reference real details from the page.
+- The credibility sentence MUST reference a real case study company and metric from the list above. Pick the one closest to the prospect's industry, size, or pain point.
 - Shorter is ALWAYS better. Every word must earn its place.
 {angle_instructions}
 RULES FOR OTHER FIELDS:
