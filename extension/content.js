@@ -166,21 +166,100 @@ function getCompanyNameFromUrl(url) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Progress UI helpers
+// ---------------------------------------------------------------------------
+
+function renderProgressUI(container) {
+    container.innerHTML = `
+        <div class="sc-progress-container">
+            <div class="sc-progress-bar-track">
+                <div class="sc-progress-bar-fill" id="sc-progress-fill"></div>
+            </div>
+            <div class="sc-progress-steps" id="sc-progress-steps">
+                <div class="sc-step" id="sc-step-0">
+                    <span class="sc-step-icon sc-step-active"></span>
+                    <span class="sc-step-text">Extracting page content...</span>
+                </div>
+                <div class="sc-step" id="sc-step-1">
+                    <span class="sc-step-icon"></span>
+                    <span class="sc-step-text">Researching contacts on LinkedIn</span>
+                </div>
+                <div class="sc-step" id="sc-step-2">
+                    <span class="sc-step-icon"></span>
+                    <span class="sc-step-text">Scanning leadership pages</span>
+                </div>
+                <div class="sc-step" id="sc-step-3">
+                    <span class="sc-step-icon"></span>
+                    <span class="sc-step-text">Finding key insights</span>
+                </div>
+                <div class="sc-step" id="sc-step-4">
+                    <span class="sc-step-icon"></span>
+                    <span class="sc-step-text">Building pre-meeting brief</span>
+                </div>
+                <div class="sc-step" id="sc-step-5">
+                    <span class="sc-step-icon"></span>
+                    <span class="sc-step-text">Developing point of view</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function advanceProgress(stepIndex, totalSteps) {
+    // Mark previous steps as done
+    for (var i = 0; i < stepIndex; i++) {
+        var prev = document.getElementById('sc-step-' + i);
+        if (prev) {
+            var icon = prev.querySelector('.sc-step-icon');
+            icon.className = 'sc-step-icon sc-step-done';
+            icon.textContent = '✓';
+            prev.querySelector('.sc-step-text').style.color = '#888';
+        }
+    }
+    // Mark current step as active
+    var current = document.getElementById('sc-step-' + stepIndex);
+    if (current) {
+        current.querySelector('.sc-step-icon').className = 'sc-step-icon sc-step-active';
+        current.querySelector('.sc-step-text').style.color = '#222';
+        current.querySelector('.sc-step-text').style.fontWeight = '600';
+    }
+    // Update progress bar
+    var fill = document.getElementById('sc-progress-fill');
+    if (fill) {
+        var pct = Math.round(((stepIndex) / totalSteps) * 100);
+        fill.style.width = pct + '%';
+    }
+}
+
+function completeAllProgress(totalSteps) {
+    for (var i = 0; i < totalSteps; i++) {
+        var step = document.getElementById('sc-step-' + i);
+        if (step) {
+            var icon = step.querySelector('.sc-step-icon');
+            icon.className = 'sc-step-icon sc-step-done';
+            icon.textContent = '✓';
+        }
+    }
+    var fill = document.getElementById('sc-progress-fill');
+    if (fill) fill.style.width = '100%';
+}
+
 async function analyzeCurrentPage(apiUrl, pageUrl, company) {
     const resultDiv = document.getElementById('salescopilot-result');
     if (!resultDiv) return;
 
-    resultDiv.innerHTML = `
-        <div style="text-align: center; padding: 20px;">
-            <div class="salescopilot-spinner"></div>
-            <p style="color: #666; margin-top: 10px; font-size: 13px;">Researching leadership & analyzing page...</p>
-        </div>
-    `;
+    var totalSteps = 6;
+    renderProgressUI(resultDiv);
 
     try {
+        // Step 0: Extract page content
+        advanceProgress(0, totalSteps);
         const pageText = extractPageText(6000);
+        await _sleep(300); // brief pause so user sees the step
 
-        // Search for leadership contacts client-side (won't be blocked like server-side)
+        // Step 1: Research contacts on LinkedIn
+        advanceProgress(1, totalSteps);
         var companyName = getCompanyNameFromUrl(pageUrl);
         var leadershipSearch = '';
         try {
@@ -188,6 +267,12 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
         } catch (e) {
             // non-fatal
         }
+
+        // Step 2: Scanning leadership pages (happens server-side, but show progress)
+        advanceProgress(2, totalSteps);
+
+        // Step 3: Finding key insights (API call starts here)
+        advanceProgress(3, totalSteps);
 
         const response = await fetch(apiUrl + '/api/analyze', {
             method: 'POST',
@@ -201,12 +286,23 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
             })
         });
 
+        // Step 4: Building pre-meeting brief
+        advanceProgress(4, totalSteps);
+
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.message || 'API returned status ' + response.status);
         }
 
         const data = await response.json();
+
+        // Step 5: Developing point of view
+        advanceProgress(5, totalSteps);
+        await _sleep(400);
+
+        // All done
+        completeAllProgress(totalSteps);
+        await _sleep(300);
 
         if (data.status === 'success' && data.analysis) {
             renderStructuredResults(resultDiv, data.analysis);
@@ -221,6 +317,10 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
             </div>
         `;
     }
+}
+
+function _sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
 
 // ---------------------------------------------------------------------------

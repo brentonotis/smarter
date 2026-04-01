@@ -313,7 +313,8 @@ KEY CONTACTS RULES:
   3. COO (Chief Operating Officer)
   4. VP of Operations / SVP Operations / Director of Operations / Head of Operations
 - Do NOT include any other roles. Specifically EXCLUDE: VP of Franchise Development, VP of Marketing, VP of Sales, CFO, CTO, HR, Legal, Franchise Development, Business Development, or any non-operations executive role.
-- Search ALL provided content — the page text, the leadership research from LinkedIn/web, and any about/team pages — for people matching ONLY the 4 target roles above.
+- IMPORTANT: Find ALL people matching the 4 target roles, not just one. A company may have a CEO AND a COO AND a VP of Operations — include ALL of them. Search every piece of provided content thoroughly.
+- Search ALL provided content — the page text, the leadership research from LinkedIn/web, and any about/team pages — for people matching ONLY the 4 target roles above. Cross-reference LinkedIn search results, web search results, and website content to find every matching person.
 - Only include contacts you can actually find evidence of by name in the provided content. Do not fabricate names.
 - If NO contacts matching the 4 target roles are found, return an empty array: "key_contacts": []
 - For each contact, assign a relevance_score from 0-100 based on role alignment (CEO=80+, President=85+, COO=90+, VP Ops=95)

@@ -67,6 +67,80 @@
     to { transform: rotate(360deg); }
 }
 
+/* --- Progress UI --- */
+
+.sc-progress-container {
+    padding: 16px 14px !important;
+}
+
+.sc-progress-bar-track {
+    width: 100% !important;
+    height: 6px !important;
+    background: #e9ecef !important;
+    border-radius: 3px !important;
+    overflow: hidden !important;
+    margin-bottom: 14px !important;
+}
+
+.sc-progress-bar-fill {
+    height: 100% !important;
+    width: 0% !important;
+    background: linear-gradient(90deg, #007bff, #00c6ff) !important;
+    border-radius: 3px !important;
+    transition: width 0.4s ease !important;
+}
+
+.sc-progress-steps {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+}
+
+.sc-step {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.sc-step-icon {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    border-radius: 50% !important;
+    border: 2px solid #ddd !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 10px !important;
+    color: transparent !important;
+    transition: all 0.3s ease !important;
+}
+
+.sc-step-active {
+    border-color: #007bff !important;
+    background: #007bff !important;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2) !important;
+    animation: sc-pulse 1.2s ease-in-out infinite !important;
+}
+
+.sc-step-done {
+    border-color: #28a745 !important;
+    background: #28a745 !important;
+    color: white !important;
+    animation: none !important;
+}
+
+@keyframes sc-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); }
+    50% { box-shadow: 0 0 0 6px rgba(0, 123, 255, 0.1); }
+}
+
+.sc-step-text {
+    font-size: 12px !important;
+    color: #aaa !important;
+    transition: color 0.3s ease !important;
+}
+
 /* --- Structured result sections --- */
 
 .sc-section {

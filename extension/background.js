@@ -35,18 +35,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'searchLeadership') {
         const name = request.companyName;
         Promise.all([
-            searchDDG(name + ' CEO OR president OR COO OR "VP of operations" site:linkedin.com'),
-            searchDDG(name + ' "chief executive officer" OR "brand president" OR "chief operating officer" OR "VP operations"'),
+            // Search each target persona individually for better coverage
+            searchDDG(name + ' CEO site:linkedin.com'),
+            searchDDG(name + ' president site:linkedin.com'),
+            searchDDG(name + ' COO "chief operating officer" site:linkedin.com'),
+            searchDDG(name + ' "VP of operations" OR "vice president operations" site:linkedin.com'),
+            // Broader searches
+            searchDDG(name + ' CEO OR president OR COO OR "VP operations"'),
             searchDDG(name + ' leadership team management executive'),
-            searchDDG(name + ' org chart OR "management team" OR executives'),
+            searchDDG(name + ' org chart OR "management team"'),
             searchDDG('site:linkedin.com/in ' + name + ' CEO OR president OR COO OR operations'),
-        ]).then(([linkedin, titles, team, org, linkedinProfiles]) => {
+        ]).then(results => {
+            const labels = [
+                'LinkedIn CEO', 'LinkedIn President', 'LinkedIn COO', 'LinkedIn VP Ops',
+                'Executive Titles', 'Leadership Team', 'Org Chart', 'LinkedIn Profiles'
+            ];
             const parts = [];
-            if (linkedin.length) parts.push('[LinkedIn Search]\n' + linkedin.join(' | '));
-            if (titles.length) parts.push('[Executive Title Search]\n' + titles.join(' | '));
-            if (team.length) parts.push('[Leadership Team Search]\n' + team.join(' | '));
-            if (org.length) parts.push('[Org Chart Search]\n' + org.join(' | '));
-            if (linkedinProfiles.length) parts.push('[LinkedIn Profiles]\n' + linkedinProfiles.join(' | '));
+            results.forEach((r, i) => {
+                if (r.length) parts.push('[' + labels[i] + ']\n' + r.join(' | '));
+            });
             sendResponse({ result: parts.join('\n\n') });
         }).catch(() => {
             sendResponse({ result: '' });
