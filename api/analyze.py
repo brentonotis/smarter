@@ -451,9 +451,32 @@ class handler(BaseHTTPRequestHandler):
                 from urllib.parse import urlparse
                 parsed_domain = urlparse(url)
                 domain = parsed_domain.netloc.replace("www.", "").split(".")[0]
-                company_name = "-".join(
-                    w.capitalize() for w in domain.split("-")
-                )
+                if "-" in domain:
+                    company_name = "-".join(
+                        w.capitalize() for w in domain.split("-")
+                    )
+                else:
+                    company_name = domain.capitalize()
+                    # Try to extract a better name from page title tag
+                    try:
+                        html_req = urllib.request.Request(url, headers={
+                            "User-Agent": "Mozilla/5.0 (compatible; SalesCopilot/2.0)"
+                        })
+                        with urllib.request.urlopen(html_req, timeout=5) as resp:
+                            raw_html = resp.read().decode("utf-8", errors="ignore")[:5000]
+                        title_match = re.search(r"<title[^>]*>(.*?)</title>", raw_html, re.IGNORECASE | re.DOTALL)
+                        if title_match:
+                            title_text = title_match.group(1).strip()
+                            # Split on common separators
+                            parts = re.split(r'\s*[|–—]\s*|\s+-\s+', title_text)
+                            for p in parts:
+                                p = re.sub(r'[™®©]', '', p).strip()
+                                words = p.split()
+                                if 1 <= len(words) <= 4 and len(p) <= 35:
+                                    company_name = p
+                                    break
+                    except Exception:
+                        pass
 
             # Fetch leadership/about pages from the company website
             leadership_text = fetch_leadership_text(url)

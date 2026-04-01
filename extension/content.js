@@ -140,7 +140,7 @@ function showAnalysisUI(container, apiUrl, company) {
 
 function getCompanyName(url) {
     var title = document.title || '';
-    var segments = title.split(/\s*[|–—]\s*/);
+    var segments = title.split(/\s*[|–—]\s*|\s+-\s+/);
 
     // Try each segment — prefer shorter, brand-like names
     // Check last segment first (often "Brand Name" in "Services | Brand Name")
@@ -171,15 +171,21 @@ function getCompanyName(url) {
         }
     }
 
-    // Fall back to domain, preserving hyphens as word separators
+    // Fall back to domain
     if (!name) {
         try {
             var hostname = new URL(url).hostname.replace('www.', '');
             var domain = hostname.split('.')[0];
-            // Convert hyphens to title case: "spray-net" -> "Spray-Net"
-            name = domain.split('-').map(function (w) {
-                return w.charAt(0).toUpperCase() + w.slice(1);
-            }).join('-');
+            if (domain.indexOf('-') >= 0) {
+                // Hyphenated domain: "spray-net" -> "Spray-Net"
+                name = domain.split('-').map(function (w) {
+                    return w.charAt(0).toUpperCase() + w.slice(1);
+                }).join('-');
+            } else {
+                // No hyphens — just capitalize: "windowgenie" -> "Windowgenie"
+                // But also try the page's og:title or h1 for the real name
+                name = domain.charAt(0).toUpperCase() + domain.slice(1);
+            }
         } catch (e) {
             name = '';
         }
