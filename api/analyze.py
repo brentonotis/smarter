@@ -142,21 +142,28 @@ def fetch_leadership_text(base_url, max_chars=4000):
 def search_leadership_claude(company_name):
     """Use Claude with web_search tool to find company leadership."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return ""
 
     prompt = (
-        f"Find the current leadership team for {company_name}. "
-        f"I need the names and titles of people in these specific roles ONLY: "
-        f"CEO, President, Brand President, COO (Chief Operating Officer), "
-        f"VP of Operations, SVP Operations, Director of Operations. "
-        f"Search LinkedIn, the company website, press releases, and business databases. "
-        f"Return ONLY a plain text list of names and titles you find. "
-        f"If you find the parent company, search for leadership there too."
+        f"Search the web for the current leadership team of \"{company_name}\". "
+        f"I need the full names and exact titles of people in these roles: "
+        f"CEO, President, Brand President, COO, VP of Operations, Director of Operations. "
+        f"Search LinkedIn profiles, the company website, press releases, Crunchbase, "
+        f"and any business databases. Also search for the parent company's leadership. "
+        f"List every person you find with their name and title."
     )
 
     payload = json.dumps({
-        "model": MODEL,
-        "max_tokens": 800,
-        "tools": [{"type": "web_search_20250305"}],
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 1024,
+        "tools": [
+            {
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 3,
+            }
+        ],
         "messages": [{"role": "user", "content": prompt}],
     }).encode()
 
@@ -172,15 +179,26 @@ def search_leadership_claude(company_name):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
+        with urllib.request.urlopen(req, timeout=55) as resp:
             data = json.loads(resp.read().decode())
 
-        # Extract all text blocks from the response
+        # Extract all text blocks and search result snippets
         texts = []
         for block in data.get("content", []):
-            if block.get("type") == "text":
+            if block.get("type") == "text" and block.get("text", "").strip():
                 texts.append(block["text"])
-        return "\n".join(texts)
+            elif block.get("type") == "web_search_tool_result":
+                # Extract search result content
+                for result in block.get("content", []):
+                    if result.get("type") == "web_search_result":
+                        title = result.get("title", "")
+                        snippet = result.get("snippet", "")
+                        if title or snippet:
+                            texts.append(f"{title}: {snippet}")
+
+        return "\n".join(texts) if texts else ""
+    except urllib.error.HTTPError:
+        return ""
     except Exception:
         return ""
 
