@@ -66,6 +66,15 @@ def send_json(handler, status, data):
 # Server-side page fetch (fallback)
 # ---------------------------------------------------------------------------
 
+def _strip_html(html):
+    """Strip script/style tags and HTML markup, returning plain text."""
+    text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def fetch_page_text(url):
     """Fetch the text content of a URL (basic extraction)."""
     try:
@@ -75,13 +84,55 @@ def fetch_page_text(url):
         with urllib.request.urlopen(req, timeout=10) as resp:
             html = resp.read().decode("utf-8", errors="ignore")
 
-        text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<[^>]+>", " ", text)
-        text = re.sub(r"\s+", " ", text).strip()
-        return text[:MAX_PAGE_TEXT_CHARS]
+        return _strip_html(html)[:MAX_PAGE_TEXT_CHARS]
     except Exception:
         return ""
+
+
+# ---------------------------------------------------------------------------
+# Leadership page discovery — crawl /about, /team, etc. to find executives
+# ---------------------------------------------------------------------------
+
+LEADERSHIP_PATHS = [
+    "/about", "/about-us", "/about/team", "/about/leadership",
+    "/team", "/our-team", "/leadership", "/management",
+    "/company", "/company/team", "/company/leadership",
+    "/people", "/executives", "/management-team",
+]
+
+def fetch_leadership_text(base_url, max_chars=4000):
+    """Try common leadership/about pages and return combined text."""
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(base_url)
+    origin = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+
+    combined = []
+    chars_so_far = 0
+
+    for path in LEADERSHIP_PATHS:
+        if chars_so_far >= max_chars:
+            break
+        try:
+            target = origin + path
+            req = urllib.request.Request(target, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; SalesCopilot/2.0)"
+            })
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                # Only process if we got a 200 and it's HTML
+                if resp.status == 200:
+                    ctype = resp.headers.get("Content-Type", "")
+                    if "html" in ctype.lower():
+                        html = resp.read().decode("utf-8", errors="ignore")
+                        text = _strip_html(html)
+                        if len(text) > 100:  # skip near-empty pages
+                            chunk = text[:max_chars - chars_so_far]
+                            combined.append(f"[Page: {path}]\n{chunk}")
+                            chars_so_far += len(chunk)
+        except Exception:
+            continue
+
+    return "\n\n".join(combined)
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +199,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_analyze_prompt(url, page_text, company, attempt=0):
+def build_analyze_prompt(url, page_text, company, attempt=0, leadership_text=""):
     company_context = ""
     if company and company.get("name"):
         company_context = f"""
@@ -244,12 +295,16 @@ URL: {url}
 
 Page Content:
 {page_text[:MAX_PAGE_TEXT_CHARS]}
+{f"""
+Leadership / About Pages (crawled from the company website — use this to find executive contacts):
+{leadership_text[:4000]}
+""" if leadership_text else ""}
 {company_context}"""
 
 
-def analyze_page(url, page_text, company, attempt=0):
+def analyze_page(url, page_text, company, attempt=0, leadership_text=""):
     """Call Claude and parse the structured JSON response."""
-    prompt = build_analyze_prompt(url, page_text, company, attempt)
+    prompt = build_analyze_prompt(url, page_text, company, attempt, leadership_text)
     raw = call_claude(SYSTEM_PROMPT, prompt, max_tokens=1500)
 
     # Strip ```json ... ``` markers if present
@@ -317,8 +372,11 @@ class handler(BaseHTTPRequestHandler):
             if not page_text:
                 page_text = "(Could not fetch page content; analyze based on URL alone)"
 
+            # Fetch leadership/about pages to find executive contacts
+            leadership_text = fetch_leadership_text(url)
+
             attempt = body.get("attempt", 0)
-            analysis = analyze_page(url, page_text, company, attempt)
+            analysis = analyze_page(url, page_text, company, attempt, leadership_text)
             send_json(self, 200, {"status": "success", "analysis": analysis, "url": url})
 
         except urllib.error.HTTPError as e:
