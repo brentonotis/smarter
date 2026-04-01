@@ -138,25 +138,6 @@ function showAnalysisUI(container, apiUrl, company) {
 // API call
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Leadership search — delegates to background script (has host_permissions)
-// ---------------------------------------------------------------------------
-
-function searchLeadership(companyName) {
-    return new Promise(function (resolve) {
-        chrome.runtime.sendMessage(
-            { action: 'searchLeadership', companyName: companyName },
-            function (response) {
-                if (chrome.runtime.lastError || !response) {
-                    resolve('');
-                } else {
-                    resolve(response.result || '');
-                }
-            }
-        );
-    });
-}
-
 function getCompanyName(url) {
     var title = document.title || '';
     var segments = title.split(/\s*[|–—]\s*/);
@@ -212,8 +193,8 @@ function getCompanyName(url) {
 
 var SC_STEPS = [
     'Extracting page content...',
-    'Researching contacts on LinkedIn...',
-    'Scanning leadership pages...',
+    'Searching for key contacts...',
+    'Scanning leadership & LinkedIn...',
     'Finding key insights...',
     'Building pre-meeting brief...',
     'Developing point of view...',
@@ -320,21 +301,12 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
         // Step 0: Extract page content
         setProgress(0);
         const pageText = extractPageText(6000);
-        await _sleep(500);
-
-        // Step 1: Research contacts on LinkedIn (real async work)
-        setProgress(1);
         var companyName = getCompanyName(pageUrl);
-        var leadershipSearch = '';
-        try {
-            leadershipSearch = await searchLeadership(companyName);
-        } catch (e) {
-            // non-fatal
-        }
+        await _sleep(400);
 
-        // Step 2: Start API call — tick through steps 2-4 during the wait
-        setProgress(2);
-        startProgressTicker(2, 4, 12000); // tick through steps over ~12s
+        // Step 1: Searching for key contacts (happens server-side via Claude web search)
+        setProgress(1);
+        startProgressTicker(1, 4, 20000); // tick through steps over ~20s (server does web search + analysis)
 
         const response = await fetch(apiUrl + '/api/analyze', {
             method: 'POST',
@@ -344,7 +316,6 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
                 page_text: pageText,
                 company: company,
                 attempt: _scAttempt,
-                leadership_search: leadershipSearch,
                 prospect_name: companyName
             })
         });

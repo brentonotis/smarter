@@ -136,61 +136,53 @@ def fetch_leadership_text(base_url, max_chars=4000):
 
 
 # ---------------------------------------------------------------------------
-# Web search for leadership — LinkedIn + general web
+# Leadership search via Claude web search tool
 # ---------------------------------------------------------------------------
 
-def _search_web(query, max_results=5):
-    """Search DuckDuckGo HTML and return snippet text from results."""
+def search_leadership_claude(company_name):
+    """Use Claude with web_search tool to find company leadership."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+
+    prompt = (
+        f"Find the current leadership team for {company_name}. "
+        f"I need the names and titles of people in these specific roles ONLY: "
+        f"CEO, President, Brand President, COO (Chief Operating Officer), "
+        f"VP of Operations, SVP Operations, Director of Operations. "
+        f"Search LinkedIn, the company website, press releases, and business databases. "
+        f"Return ONLY a plain text list of names and titles you find. "
+        f"If you find the parent company, search for leadership there too."
+    )
+
+    payload = json.dumps({
+        "model": MODEL,
+        "max_tokens": 800,
+        "tools": [{"type": "web_search_20250305"}],
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        ANTHROPIC_API_URL,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+        },
+        method="POST",
+    )
+
     try:
-        encoded = urllib.parse.quote_plus(query)
-        url = f"https://html.duckduckgo.com/html/?q={encoded}"
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        })
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            html = resp.read().decode("utf-8", errors="ignore")
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            data = json.loads(resp.read().decode())
 
-        # Extract result snippets from DuckDuckGo HTML results
-        results = []
-        # DuckDuckGo HTML uses class="result__snippet" for snippets
-        # and class="result__title" for titles
-        snippets = re.findall(
-            r'class="result__(?:title|snippet)"[^>]*>(.*?)</(?:a|td)>',
-            html, re.DOTALL
-        )
-        for s in snippets[:max_results * 2]:
-            text = re.sub(r"<[^>]+>", "", s).strip()
-            if text and len(text) > 10:
-                results.append(text)
-
-        return " | ".join(results[:max_results * 2])
+        # Extract all text blocks from the response
+        texts = []
+        for block in data.get("content", []):
+            if block.get("type") == "text":
+                texts.append(block["text"])
+        return "\n".join(texts)
     except Exception:
         return ""
-
-
-def search_leadership_web(company_name, max_chars=3000):
-    """Search LinkedIn and the web for company leadership info."""
-    results = []
-    qname = f'"{company_name}"'
-
-    queries = [
-        (f'{qname} CEO OR president site:linkedin.com', "LinkedIn CEO/President"),
-        (f'{qname} COO OR "chief operating officer" site:linkedin.com', "LinkedIn COO"),
-        (f'{qname} "VP operations" OR "director of operations" site:linkedin.com', "LinkedIn VP Ops"),
-        (f'site:linkedin.com/in {qname} CEO OR president OR COO OR operations OR founder', "LinkedIn Profiles"),
-        (f'{qname} CEO OR president OR COO OR "VP operations" OR founder OR owner', "Web Executives"),
-        (f'{qname} leadership team OR "management team" OR executives', "Leadership Team"),
-        (f'{qname} founder OR CEO site:crunchbase.com OR site:bloomberg.com OR site:marketwatch.com', "Business Databases"),
-        (f'{qname} "founded by" OR "led by" OR "headed by"', "Press Mentions"),
-    ]
-
-    for query, label in queries:
-        text = _search_web(query)
-        if text:
-            results.append(f"[{label}]\n{text}")
-
-    combined = "\n\n".join(results)
-    return combined[:max_chars]
 
 
 # ---------------------------------------------------------------------------
@@ -435,12 +427,6 @@ class handler(BaseHTTPRequestHandler):
             if not page_text:
                 page_text = "(Could not fetch page content; analyze based on URL alone)"
 
-            # Fetch leadership/about pages to find executive contacts
-            leadership_text = fetch_leadership_text(url)
-
-            # Client-side search results (from extension, not blocked by DDG)
-            client_search = body.get("leadership_search", "").strip()
-
             # Use client-extracted company name if available, else derive from domain
             company_name = body.get("prospect_name", "").strip()
             if not company_name:
@@ -451,18 +437,18 @@ class handler(BaseHTTPRequestHandler):
                     w.capitalize() for w in domain.split("-")
                 )
 
-            # Server-side search fallback
-            server_search = search_leadership_web(company_name)
+            # Fetch leadership/about pages from the company website
+            leadership_text = fetch_leadership_text(url)
+
+            # Use Claude web search to find leadership (reliable, no blocking)
+            claude_search = search_leadership_claude(company_name)
 
             # Combine all leadership intel
             all_leadership_parts = []
             if leadership_text:
-                all_leadership_parts.append(leadership_text)
-            if client_search:
-                all_leadership_parts.append(client_search)
-            if server_search and not client_search:
-                # Only use server search if client search didn't return anything
-                all_leadership_parts.append(server_search)
+                all_leadership_parts.append(f"[Website Pages]\n{leadership_text}")
+            if claude_search:
+                all_leadership_parts.append(f"[Web Search Results]\n{claude_search}")
             all_leadership = "\n\n".join(all_leadership_parts)
 
             attempt = body.get("attempt", 0)

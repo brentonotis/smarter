@@ -7,9 +7,6 @@
     "activeTab",
     "storage"
   ],
-  "host_permissions": [
-    "https://html.duckduckgo.com/*"
-  ],
   "action": {},
   "content_scripts": [
     {
