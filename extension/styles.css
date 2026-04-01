@@ -5,7 +5,7 @@
     top: 20px !important;
     right: 20px !important;
     width: 380px !important;
-    max-height: 600px !important;
+    max-height: 80vh !important;
     background: white !important;
     border-radius: 10px !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
@@ -49,7 +49,7 @@
     flex: 1 !important;
     overflow-y: auto !important;
     background: white !important;
-    max-height: 540px !important;
+    max-height: calc(80vh - 44px) !important;
 }
 
 /* Spinner */
@@ -123,6 +123,107 @@
     line-height: 1.5 !important;
     color: #444 !important;
     margin-bottom: 3px !important;
+}
+
+/* --- Key Contacts --- */
+
+.sc-contact-card {
+    background: #f8f9fa !important;
+    border: 1px solid #e9ecef !important;
+    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    margin-bottom: 6px !important;
+}
+
+.sc-contact-card:last-child {
+    margin-bottom: 0 !important;
+}
+
+.sc-contact-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 2px !important;
+}
+
+.sc-contact-name {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #222 !important;
+}
+
+.sc-relevance-score {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 2px 8px !important;
+    border-radius: 10px !important;
+    min-width: 28px !important;
+    text-align: center !important;
+}
+
+.sc-score-high {
+    background: #d4edda !important;
+    color: #155724 !important;
+}
+
+.sc-score-med {
+    background: #fff3cd !important;
+    color: #856404 !important;
+}
+
+.sc-score-low {
+    background: #f8d7da !important;
+    color: #721c24 !important;
+}
+
+.sc-contact-title {
+    font-size: 11px !important;
+    color: #666 !important;
+    font-weight: 500 !important;
+}
+
+.sc-contact-why {
+    font-size: 11px !important;
+    color: #555 !important;
+    margin-top: 4px !important;
+    line-height: 1.4 !important;
+    font-style: italic !important;
+}
+
+/* --- Pre-Meeting Brief --- */
+
+.sc-brief-card {
+    background: #fafbfc !important;
+}
+
+.sc-brief-section {
+    margin-bottom: 8px !important;
+}
+
+.sc-brief-section:last-child {
+    margin-bottom: 0 !important;
+}
+
+.sc-brief-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #444 !important;
+    margin-bottom: 3px !important;
+}
+
+.sc-brief-text {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+    color: #444 !important;
+    padding: 6px 8px !important;
+    background: #fff !important;
+    border-radius: 4px !important;
+    border-left: 3px solid #007bff !important;
+}
+
+.sc-list-highlight li {
+    color: #1a56db !important;
+    font-weight: 500 !important;
 }
 
 /* --- Outreach Card --- */

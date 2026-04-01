@@ -223,6 +223,73 @@ function renderStructuredResults(container, analysis) {
         html += '</ul></div>';
     }
 
+    // Key Contacts with Relevance Scores
+    if (analysis.key_contacts && analysis.key_contacts.length > 0) {
+        html += '<div class="sc-section"><div class="sc-label">Key Contacts</div>';
+        analysis.key_contacts.forEach(function (contact) {
+            var score = contact.relevance_score || 0;
+            var scoreClass = score >= 75 ? 'sc-score-high' : score >= 50 ? 'sc-score-med' : 'sc-score-low';
+            html += '<div class="sc-contact-card">';
+            html += '<div class="sc-contact-header">';
+            html += '<div class="sc-contact-name">' + escapeHtml(contact.name) + '</div>';
+            html += '<span class="sc-relevance-score ' + scoreClass + '">' + score + '</span>';
+            html += '</div>';
+            html += '<div class="sc-contact-title">' + escapeHtml(contact.title) + '</div>';
+            if (contact.why_relevant) {
+                html += '<div class="sc-contact-why">' + escapeHtml(contact.why_relevant) + '</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    // Pre-Meeting Brief
+    var brief = analysis.pre_meeting_brief || {};
+    var hasBrief = brief.company_news || brief.hiring_updates || brief.business_signals ||
+                   brief.industry_events || brief.conversation_context || brief.sales_shaping_insights;
+    if (hasBrief) {
+        html += '<div class="sc-section sc-brief-card"><div class="sc-label">Pre-Meeting Brief</div>';
+
+        var briefSections = [
+            { key: 'company_news', label: 'Company News', icon: '📰' },
+            { key: 'hiring_updates', label: 'Hiring Updates', icon: '👥' },
+            { key: 'business_signals', label: 'Business Signals', icon: '📊' },
+            { key: 'industry_events', label: 'Industry Events', icon: '🏛' },
+        ];
+
+        briefSections.forEach(function (sec) {
+            var items = brief[sec.key];
+            if (items && items.length > 0) {
+                html += '<div class="sc-brief-section">';
+                html += '<div class="sc-brief-label">' + sec.icon + ' ' + sec.label + '</div>';
+                html += '<ul class="sc-list">';
+                items.forEach(function (item) {
+                    html += '<li>' + escapeHtml(item) + '</li>';
+                });
+                html += '</ul></div>';
+            }
+        });
+
+        if (brief.conversation_context) {
+            html += '<div class="sc-brief-section">';
+            html += '<div class="sc-brief-label">💬 Conversation Context</div>';
+            html += '<div class="sc-brief-text">' + escapeHtml(brief.conversation_context) + '</div>';
+            html += '</div>';
+        }
+
+        if (brief.sales_shaping_insights && brief.sales_shaping_insights.length > 0) {
+            html += '<div class="sc-brief-section">';
+            html += '<div class="sc-brief-label">🎯 Sales-Shaping Insights</div>';
+            html += '<ul class="sc-list sc-list-highlight">';
+            brief.sales_shaping_insights.forEach(function (item) {
+                html += '<li>' + escapeHtml(item) + '</li>';
+            });
+            html += '</ul></div>';
+        }
+
+        html += '</div>';
+    }
+
     // 5-Part Outreach Message
     var outreach = analysis.outreach || {};
     var hasOutreach = outreach.observation || outreach.problem || outreach.credibility || outreach.solution || outreach.ctc;

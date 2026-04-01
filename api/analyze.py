@@ -139,7 +139,9 @@ CASE STUDY 6: Empower Brands (Multi-Brand Home & Commercial Services)
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = (
-    "You are an elite B2B sales copywriter. You write ultra-short cold outreach "
+    "You are an elite B2B sales intelligence analyst and copywriter. You research "
+    "companies deeply, identify key decision-makers, score prospect relevance, "
+    "and build pre-meeting briefs. You also write ultra-short cold outreach "
     "messages (25-50 words) at a 5th-grade reading level. No jargon, no fluff, "
     "no filler words. Every word earns its place. You MUST respond with valid "
     "JSON only — no markdown, no commentary outside the JSON."
@@ -174,6 +176,22 @@ Seller Context:
   "overview": "1 sentence: who is this company/person and what do they do",
   "tags": ["tag1", "tag2", "tag3"],
   "insights": ["insight 1", "insight 2", "insight 3"],
+  "key_contacts": [
+    {{
+      "name": "Full Name",
+      "title": "Their exact title (e.g., Brand President, COO, VP of Operations)",
+      "relevance_score": 85,
+      "why_relevant": "1 sentence: why this person is a high-priority prospect for the seller"
+    }}
+  ],
+  "pre_meeting_brief": {{
+    "company_news": ["Recent news item 1", "Recent news item 2"],
+    "hiring_updates": ["Hiring signal 1", "Hiring signal 2"],
+    "business_signals": ["Business signal 1 (funding, expansion, M&A, partnerships)"],
+    "industry_events": ["Relevant industry event or trend"],
+    "conversation_context": "2-3 sentences: What the seller should know going into a first conversation — key themes, timing, and likely priorities based on all available signals",
+    "sales_shaping_insights": ["Insight that shapes the sales approach 1", "Insight 2"]
+  }},
   "outreach": {{
     "observation": "1 sentence: a specific, personalized detail showing you did research (recent news, role change, funding, hiring, product launch)",
     "problem": "1 sentence: connect that observation to a pain point or opportunity relevant to their role",
@@ -182,6 +200,25 @@ Seller Context:
     "ctc": "1 open-ended question that starts a dialogue — easy to reply to, NOT asking to book a meeting (e.g., 'Curious if this resonates?', 'Is this on your radar?', 'How are you thinking about this?')"
   }}
 }}
+
+KEY CONTACTS RULES:
+- Search the page for leadership/executive team members, specifically: Brand President, COO (Chief Operating Officer), VP of Operations, or similar operational leadership roles
+- If these exact titles aren't found, look for equivalent roles: President, CEO, Director of Operations, Head of Operations, SVP Operations, Chief Operations Officer
+- Only include contacts you can actually find evidence of on the page or can reasonably infer from the content
+- If NO leadership contacts are found, return an empty array: "key_contacts": []
+- For each contact, assign a relevance_score from 0-100 based on how likely they are to be the right buyer/decision-maker for the seller's product
+- Score factors: role alignment with operational software (higher for ops roles), seniority level, decision-making authority, industry fit
+- Sort by relevance_score descending (highest first)
+
+PRE-MEETING BRIEF RULES:
+- Research deeply: extract every signal from the page content about what this company is doing, planning, or struggling with
+- "company_news": recent announcements, press releases, product launches, leadership changes visible on the page
+- "hiring_updates": any evidence of hiring, team growth, new roles, or workforce changes
+- "business_signals": funding rounds, expansion plans, new markets, partnerships, M&A activity, revenue milestones
+- "industry_events": relevant trade shows, conferences, regulatory changes, or market shifts affecting their industry
+- "conversation_context": synthesize ALL signals into a concise brief — what should the seller know before walking into a meeting? What's top of mind for this company right now?
+- "sales_shaping_insights": the 2-3 insights that should actually shape the sales conversation — not generic observations, but specific angles that connect the prospect's situation to the seller's value
+- If no information is available for a field, use an empty array [] or empty string ""
 
 SELLER'S PROVEN RESULTS (use these for the credibility sentence — pick the most relevant one):
 {CASE_STUDIES}
@@ -213,7 +250,7 @@ Page Content:
 def analyze_page(url, page_text, company, attempt=0):
     """Call Claude and parse the structured JSON response."""
     prompt = build_analyze_prompt(url, page_text, company, attempt)
-    raw = call_claude(SYSTEM_PROMPT, prompt, max_tokens=700)
+    raw = call_claude(SYSTEM_PROMPT, prompt, max_tokens=1500)
 
     # Strip ```json ... ``` markers if present
     cleaned = raw.strip()
