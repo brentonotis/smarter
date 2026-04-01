@@ -158,17 +158,47 @@ function searchLeadership(companyName) {
 }
 
 function getCompanyName(url) {
-    // Try to get company name from page title first (more accurate than domain)
     var title = document.title || '';
-    // Common patterns: "Company Name | Tagline", "Company Name - Tagline", "Company Name™"
-    var name = title.split(/\s*[|\-–—:]\s*/)[0].replace(/[™®©]/g, '').trim();
-    // If title is too long or generic, fall back to domain
-    if (!name || name.length > 40 || name.toLowerCase().includes('home') || name.split(' ').length > 5) {
+    var segments = title.split(/\s*[|–—]\s*/);
+
+    // Try each segment — prefer shorter, brand-like names
+    // Check last segment first (often "Brand Name" in "Services | Brand Name")
+    // then first segment (often "Brand Name | Tagline")
+    var candidates = [];
+    if (segments.length > 1) {
+        candidates.push(segments[segments.length - 1]); // last
+        candidates.push(segments[0]); // first
+    } else {
+        candidates.push(segments[0]);
+    }
+
+    // Also try og:site_name meta tag
+    var ogSite = document.querySelector('meta[property="og:site_name"]');
+    if (ogSite && ogSite.content) {
+        candidates.unshift(ogSite.content.trim()); // highest priority
+    }
+
+    var name = '';
+    for (var i = 0; i < candidates.length; i++) {
+        var c = candidates[i].replace(/[™®©]/g, '').trim();
+        // Good candidate: short (1-4 words), not generic service description
+        var words = c.split(/\s+/);
+        var generic = /^(home|about|welcome|services|products|solutions|contact|exterior|interior|professional)/i;
+        if (c && c.length <= 40 && words.length <= 5 && !generic.test(c)) {
+            name = c;
+            break;
+        }
+    }
+
+    // Fall back to domain, preserving hyphens as word separators
+    if (!name) {
         try {
             var hostname = new URL(url).hostname.replace('www.', '');
-            name = hostname.split('.')[0];
-            // Capitalize first letter
-            name = name.charAt(0).toUpperCase() + name.slice(1);
+            var domain = hostname.split('.')[0];
+            // Convert hyphens to title case: "spray-net" -> "Spray-Net"
+            name = domain.split('-').map(function (w) {
+                return w.charAt(0).toUpperCase() + w.slice(1);
+            }).join('-');
         } catch (e) {
             name = '';
         }
@@ -314,7 +344,8 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
                 page_text: pageText,
                 company: company,
                 attempt: _scAttempt,
-                leadership_search: leadershipSearch
+                leadership_search: leadershipSearch,
+                prospect_name: companyName
             })
         });
 

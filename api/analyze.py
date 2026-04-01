@@ -441,16 +441,15 @@ class handler(BaseHTTPRequestHandler):
             # Client-side search results (from extension, not blocked by DDG)
             client_search = body.get("leadership_search", "").strip()
 
-            # Extract company name from page text or URL
-            from urllib.parse import urlparse
-            company_name = ""
-            # Try to find a brand/company name in the page text (often in title)
-            title_match = re.search(r"^([\w][\w\s\-'&.]{1,35}?)(?:\s*[|–—:\-]|\s+Home\b)", page_text)
-            if title_match:
-                company_name = title_match.group(1).strip()
-            if not company_name or len(company_name) < 3:
+            # Use client-extracted company name if available, else derive from domain
+            company_name = body.get("prospect_name", "").strip()
+            if not company_name:
+                from urllib.parse import urlparse
                 parsed_domain = urlparse(url)
-                company_name = parsed_domain.netloc.replace("www.", "").split(".")[0].capitalize()
+                domain = parsed_domain.netloc.replace("www.", "").split(".")[0]
+                company_name = "-".join(
+                    w.capitalize() for w in domain.split("-")
+                )
 
             # Server-side search fallback
             server_search = search_leadership_web(company_name)
