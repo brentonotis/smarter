@@ -136,6 +136,68 @@ def fetch_leadership_text(base_url, max_chars=4000):
 
 
 # ---------------------------------------------------------------------------
+# Web search for leadership — LinkedIn + general web
+# ---------------------------------------------------------------------------
+
+def _search_web(query, max_results=5):
+    """Search DuckDuckGo HTML and return snippet text from results."""
+    try:
+        encoded = urllib.parse.quote_plus(query)
+        url = f"https://html.duckduckgo.com/html/?q={encoded}"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+
+        # Extract result snippets from DuckDuckGo HTML results
+        results = []
+        # DuckDuckGo HTML uses class="result__snippet" for snippets
+        # and class="result__title" for titles
+        snippets = re.findall(
+            r'class="result__(?:title|snippet)"[^>]*>(.*?)</(?:a|td)>',
+            html, re.DOTALL
+        )
+        for s in snippets[:max_results * 2]:
+            text = re.sub(r"<[^>]+>", "", s).strip()
+            if text and len(text) > 10:
+                results.append(text)
+
+        return " | ".join(results[:max_results * 2])
+    except Exception:
+        return ""
+
+
+def search_leadership_web(company_name, max_chars=3000):
+    """Search LinkedIn and the web for company leadership info."""
+    results = []
+
+    # LinkedIn search for leadership
+    linkedin_text = _search_web(
+        f"{company_name} president COO VP operations site:linkedin.com"
+    )
+    if linkedin_text:
+        results.append(f"[LinkedIn Search Results]\n{linkedin_text}")
+
+    # General web search for leadership team
+    web_text = _search_web(
+        f'"{company_name}" leadership team president COO "VP of operations"'
+    )
+    if web_text:
+        results.append(f"[Web Search Results]\n{web_text}")
+
+    # Additional search for franchise-specific roles
+    franchise_text = _search_web(
+        f'"{company_name}" "brand president" OR "chief operating officer" OR "vice president operations"'
+    )
+    if franchise_text:
+        results.append(f"[Executive Search Results]\n{franchise_text}")
+
+    combined = "\n\n".join(results)
+    return combined[:max_chars]
+
+
+# ---------------------------------------------------------------------------
 # Case study knowledge base — real metrics for credibility statements
 # ---------------------------------------------------------------------------
 
@@ -296,8 +358,8 @@ URL: {url}
 Page Content:
 {page_text[:MAX_PAGE_TEXT_CHARS]}
 {f"""
-Leadership / About Pages (crawled from the company website — use this to find executive contacts):
-{leadership_text[:4000]}
+Leadership Research (crawled from company website, LinkedIn, and web search — use this to find executive contacts):
+{leadership_text[:6000]}
 """ if leadership_text else ""}
 {company_context}"""
 
@@ -375,8 +437,30 @@ class handler(BaseHTTPRequestHandler):
             # Fetch leadership/about pages to find executive contacts
             leadership_text = fetch_leadership_text(url)
 
+            # Extract company name from page text or company info for web search
+            from urllib.parse import urlparse
+            company_name = ""
+            if company and company.get("name"):
+                # Use the prospect's domain as the company name for search
+                pass
+            parsed_domain = urlparse(url)
+            domain_name = parsed_domain.netloc.replace("www.", "").split(".")[0]
+            # Try to get company name from overview or use domain
+            company_name = domain_name.capitalize()
+
+            # Search LinkedIn and web for leadership
+            web_leadership = search_leadership_web(company_name)
+
+            # Combine all leadership intel
+            all_leadership = leadership_text
+            if web_leadership:
+                if all_leadership:
+                    all_leadership += "\n\n" + web_leadership
+                else:
+                    all_leadership = web_leadership
+
             attempt = body.get("attempt", 0)
-            analysis = analyze_page(url, page_text, company, attempt, leadership_text)
+            analysis = analyze_page(url, page_text, company, attempt, all_leadership)
             send_json(self, 200, {"status": "success", "analysis": analysis, "url": url})
 
         except urllib.error.HTTPError as e:
