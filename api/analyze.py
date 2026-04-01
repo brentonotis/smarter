@@ -146,12 +146,16 @@ def search_leadership_claude(company_name):
         return ""
 
     prompt = (
-        f"Search the web for the current leadership team of \"{company_name}\". "
-        f"I need the full names and exact titles of people in these roles: "
-        f"CEO, President, Brand President, COO, VP of Operations, Director of Operations. "
-        f"Search LinkedIn profiles, the company website, press releases, Crunchbase, "
-        f"and any business databases. Also search for the parent company's leadership. "
-        f"List every person you find with their name and title."
+        f"Search the web to find the names of people in leadership roles at \"{company_name}\". "
+        f"I ONLY care about these roles: CEO, President, Brand President, COO, VP of Operations. "
+        f"Do multiple searches:\n"
+        f"1. Search: \"{company_name}\" president OR CEO\n"
+        f"2. Search: \"{company_name}\" COO OR \"VP operations\" OR \"chief operating officer\"\n"
+        f"3. Search: \"{company_name}\" leadership team site:linkedin.com\n"
+        f"4. If {company_name} is part of a larger company (e.g. Neighborly, Authority Brands, "
+        f"Five Star Brands, Empower Brands), also search for the brand president under that parent.\n"
+        f"List every person you find with their FULL NAME and EXACT TITLE. "
+        f"Include even partial matches from search result titles."
     )
 
     payload = json.dumps({
@@ -161,7 +165,7 @@ def search_leadership_claude(company_name):
             {
                 "type": "web_search_20250305",
                 "name": "web_search",
-                "max_uses": 3,
+                "max_uses": 5,
             }
         ],
         "messages": [{"role": "user", "content": prompt}],
@@ -182,6 +186,10 @@ def search_leadership_claude(company_name):
         with urllib.request.urlopen(req, timeout=55) as resp:
             data = json.loads(resp.read().decode())
 
+        # Debug: return raw response structure
+        stop_reason = data.get("stop_reason", "unknown")
+        block_types = [b.get("type", "?") for b in data.get("content", [])]
+
         # Extract all text blocks and search result snippets
         texts = []
         for block in data.get("content", []):
@@ -193,10 +201,14 @@ def search_leadership_claude(company_name):
                     if result.get("type") == "web_search_result":
                         title = result.get("title", "")
                         snippet = result.get("snippet", "")
-                        if title or snippet:
-                            texts.append(f"{title}: {snippet}")
+                        url = result.get("url", "")
+                        parts = [p for p in [title, snippet, url] if p]
+                        if parts:
+                            texts.append(" | ".join(parts))
 
-        return "\n".join(texts) if texts else ""
+        if not texts:
+            return f"(no_text_found stop_reason={stop_reason} blocks={block_types})"
+        return "\n".join(texts)
     except urllib.error.HTTPError:
         return ""
     except Exception:
@@ -327,10 +339,10 @@ KEY CONTACTS RULES:
   3. COO (Chief Operating Officer)
   4. VP of Operations / SVP Operations / Director of Operations / Head of Operations
 - Do NOT include any other roles. Specifically EXCLUDE: VP of Franchise Development, VP of Marketing, VP of Sales, CFO, CTO, HR, Legal, Franchise Development, Business Development, or any non-operations executive role.
-- IMPORTANT: Find ALL people matching the 4 target roles, not just one. A company may have a CEO AND a COO AND a VP of Operations — include ALL of them. Search every piece of provided content thoroughly.
-- Search ALL provided content — the page text, the leadership research from LinkedIn/web, and any about/team pages — for people matching ONLY the 4 target roles above. Cross-reference LinkedIn search results, web search results, and website content to find every matching person.
-- Only include contacts you can actually find evidence of by name in the provided content. Do not fabricate names.
-- If NO contacts matching the 4 target roles are found, return an empty array: "key_contacts": []
+- IMPORTANT: Find ALL people matching the 4 target roles, not just one. A company may have a CEO AND a COO AND a VP of Operations — include ALL of them.
+- Search EVERY piece of provided content thoroughly — the page text, the Leadership Research section (which contains web search results, LinkedIn results, and scraped website pages). Even partial mentions like "John Smith - CEO at CompanyName | LinkedIn" count as valid evidence.
+- If a person's name and a matching title appear ANYWHERE in the provided content (even in a search result title, a snippet, or a page listing), include them.
+- If NO contacts matching the 4 target roles are found anywhere in the content, return an empty array: "key_contacts": []
 - For each contact, assign a relevance_score from 0-100 based on role alignment (CEO=80+, President=85+, COO=90+, VP Ops=95)
 - Sort by relevance_score descending (highest first)
 
