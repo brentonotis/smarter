@@ -157,13 +157,23 @@ function searchLeadership(companyName) {
     });
 }
 
-function getCompanyNameFromUrl(url) {
-    try {
-        var hostname = new URL(url).hostname.replace('www.', '');
-        return hostname.split('.')[0].charAt(0).toUpperCase() + hostname.split('.')[0].slice(1);
-    } catch (e) {
-        return '';
+function getCompanyName(url) {
+    // Try to get company name from page title first (more accurate than domain)
+    var title = document.title || '';
+    // Common patterns: "Company Name | Tagline", "Company Name - Tagline", "Company Name™"
+    var name = title.split(/\s*[|\-–—:]\s*/)[0].replace(/[™®©]/g, '').trim();
+    // If title is too long or generic, fall back to domain
+    if (!name || name.length > 40 || name.toLowerCase().includes('home') || name.split(' ').length > 5) {
+        try {
+            var hostname = new URL(url).hostname.replace('www.', '');
+            name = hostname.split('.')[0];
+            // Capitalize first letter
+            name = name.charAt(0).toUpperCase() + name.slice(1);
+        } catch (e) {
+            name = '';
+        }
     }
+    return name;
 }
 
 // ---------------------------------------------------------------------------
@@ -284,7 +294,7 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
 
         // Step 1: Research contacts on LinkedIn (real async work)
         setProgress(1);
-        var companyName = getCompanyNameFromUrl(pageUrl);
+        var companyName = getCompanyName(pageUrl);
         var leadershipSearch = '';
         try {
             leadershipSearch = await searchLeadership(companyName);

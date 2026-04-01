@@ -171,13 +171,17 @@ def _search_web(query, max_results=5):
 def search_leadership_web(company_name, max_chars=3000):
     """Search LinkedIn and the web for company leadership info."""
     results = []
+    qname = f'"{company_name}"'
 
     queries = [
-        (f'{company_name} CEO OR president OR COO OR "VP of operations" site:linkedin.com', "LinkedIn"),
-        (f'{company_name} "chief executive officer" OR "brand president" OR "chief operating officer" OR "VP operations"', "Executive Titles"),
-        (f'{company_name} leadership team management executive', "Leadership Team"),
-        (f'{company_name} org chart OR "management team" OR executives', "Org Chart"),
-        (f'site:linkedin.com/in {company_name} CEO OR president OR COO OR operations', "LinkedIn Profiles"),
+        (f'{qname} CEO OR president site:linkedin.com', "LinkedIn CEO/President"),
+        (f'{qname} COO OR "chief operating officer" site:linkedin.com', "LinkedIn COO"),
+        (f'{qname} "VP operations" OR "director of operations" site:linkedin.com', "LinkedIn VP Ops"),
+        (f'site:linkedin.com/in {qname} CEO OR president OR COO OR operations OR founder', "LinkedIn Profiles"),
+        (f'{qname} CEO OR president OR COO OR "VP operations" OR founder OR owner', "Web Executives"),
+        (f'{qname} leadership team OR "management team" OR executives', "Leadership Team"),
+        (f'{qname} founder OR CEO site:crunchbase.com OR site:bloomberg.com OR site:marketwatch.com', "Business Databases"),
+        (f'{qname} "founded by" OR "led by" OR "headed by"', "Press Mentions"),
     ]
 
     for query, label in queries:
@@ -437,11 +441,18 @@ class handler(BaseHTTPRequestHandler):
             # Client-side search results (from extension, not blocked by DDG)
             client_search = body.get("leadership_search", "").strip()
 
-            # Server-side search fallback
+            # Extract company name from page text or URL
             from urllib.parse import urlparse
-            parsed_domain = urlparse(url)
-            domain_name = parsed_domain.netloc.replace("www.", "").split(".")[0]
-            company_name = domain_name.capitalize()
+            company_name = ""
+            # Try to find a brand/company name in the page text (often in title)
+            title_match = re.search(r"^([\w][\w\s\-'&.]{1,35}?)(?:\s*[|–—:\-]|\s+Home\b)", page_text)
+            if title_match:
+                company_name = title_match.group(1).strip()
+            if not company_name or len(company_name) < 3:
+                parsed_domain = urlparse(url)
+                company_name = parsed_domain.netloc.replace("www.", "").split(".")[0].capitalize()
+
+            # Server-side search fallback
             server_search = search_leadership_web(company_name)
 
             # Combine all leadership intel

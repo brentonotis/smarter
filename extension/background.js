@@ -34,21 +34,25 @@ async function searchDDG(query) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'searchLeadership') {
         const name = request.companyName;
+        // Also try with quotes for exact match
+        const qname = '"' + name + '"';
         Promise.all([
-            // Search each target persona individually for better coverage
-            searchDDG(name + ' CEO site:linkedin.com'),
-            searchDDG(name + ' president site:linkedin.com'),
-            searchDDG(name + ' COO "chief operating officer" site:linkedin.com'),
-            searchDDG(name + ' "VP of operations" OR "vice president operations" site:linkedin.com'),
-            // Broader searches
-            searchDDG(name + ' CEO OR president OR COO OR "VP operations"'),
-            searchDDG(name + ' leadership team management executive'),
-            searchDDG(name + ' org chart OR "management team"'),
-            searchDDG('site:linkedin.com/in ' + name + ' CEO OR president OR COO OR operations'),
+            // LinkedIn per-persona searches
+            searchDDG(qname + ' CEO OR president site:linkedin.com'),
+            searchDDG(qname + ' COO OR "chief operating officer" site:linkedin.com'),
+            searchDDG(qname + ' "VP operations" OR "vice president operations" OR "director of operations" site:linkedin.com'),
+            searchDDG('site:linkedin.com/in ' + qname + ' CEO OR president OR COO OR operations OR founder'),
+            // General web — founder/owner catches smaller companies
+            searchDDG(qname + ' CEO OR president OR COO OR "VP operations" OR founder OR owner'),
+            searchDDG(qname + ' leadership team OR "management team" OR executives'),
+            // Press releases and business databases (great for smaller companies)
+            searchDDG(qname + ' founder OR CEO site:crunchbase.com OR site:bloomberg.com OR site:marketwatch.com'),
+            searchDDG(qname + ' "founded by" OR "led by" OR "headed by"'),
         ]).then(results => {
             const labels = [
-                'LinkedIn CEO', 'LinkedIn President', 'LinkedIn COO', 'LinkedIn VP Ops',
-                'Executive Titles', 'Leadership Team', 'Org Chart', 'LinkedIn Profiles'
+                'LinkedIn CEO/President', 'LinkedIn COO', 'LinkedIn VP Ops',
+                'LinkedIn Profiles', 'Web Executives', 'Leadership Team',
+                'Business Databases', 'Press Mentions'
             ];
             const parts = [];
             results.forEach((r, i) => {

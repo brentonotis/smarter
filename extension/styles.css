@@ -77,7 +77,7 @@
 .sc-progress-bar-track {
     width: 100% !important;
     height: 8px !important;
-    background: #1a1a2e !important;
+    background: #e9ecef !important;
     border-radius: 4px !important;
     overflow: hidden !important;
     margin-bottom: 18px !important;
@@ -166,19 +166,21 @@
     color: transparent !important;
     transition: all 0.3s ease !important;
     background: transparent !important;
+    box-sizing: border-box !important;
 }
 
 .sc-step-active {
-    border-color: transparent !important;
-    background: linear-gradient(135deg, #7c5cfc, #c084fc, #38bdf8) !important;
-    background-size: 200% 200% !important;
-    animation: sc-icon-spin 1.5s linear infinite !important;
-    box-shadow: 0 0 8px rgba(124, 92, 252, 0.4) !important;
+    border: 2.5px solid #e0e0e0 !important;
+    border-top-color: #7c5cfc !important;
+    border-right-color: #38bdf8 !important;
+    background: transparent !important;
+    animation: sc-spinner-spin 0.8s linear infinite !important;
+    box-shadow: 0 0 6px rgba(124, 92, 252, 0.3) !important;
 }
 
-@keyframes sc-icon-spin {
-    0% { background-position: 0% 0%; transform: rotate(0deg); }
-    100% { background-position: 200% 200%; transform: rotate(360deg); }
+@keyframes sc-spinner-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .sc-step-done {
