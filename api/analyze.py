@@ -172,26 +172,18 @@ def search_leadership_web(company_name, max_chars=3000):
     """Search LinkedIn and the web for company leadership info."""
     results = []
 
-    # LinkedIn search for leadership
-    linkedin_text = _search_web(
-        f"{company_name} president COO VP operations site:linkedin.com"
-    )
-    if linkedin_text:
-        results.append(f"[LinkedIn Search Results]\n{linkedin_text}")
+    queries = [
+        (f'{company_name} CEO OR president OR COO OR "VP of operations" site:linkedin.com', "LinkedIn"),
+        (f'{company_name} "chief executive officer" OR "brand president" OR "chief operating officer" OR "VP operations"', "Executive Titles"),
+        (f'{company_name} leadership team management executive', "Leadership Team"),
+        (f'{company_name} org chart OR "management team" OR executives', "Org Chart"),
+        (f'site:linkedin.com/in {company_name} CEO OR president OR COO OR operations', "LinkedIn Profiles"),
+    ]
 
-    # General web search for leadership team
-    web_text = _search_web(
-        f'"{company_name}" leadership team president COO "VP of operations"'
-    )
-    if web_text:
-        results.append(f"[Web Search Results]\n{web_text}")
-
-    # Additional search for franchise-specific roles
-    franchise_text = _search_web(
-        f'"{company_name}" "brand president" OR "chief operating officer" OR "vice president operations"'
-    )
-    if franchise_text:
-        results.append(f"[Executive Search Results]\n{franchise_text}")
+    for query, label in queries:
+        text = _search_web(query)
+        if text:
+            results.append(f"[{label}]\n{text}")
 
     combined = "\n\n".join(results)
     return combined[:max_chars]
@@ -315,12 +307,16 @@ Seller Context:
 }}
 
 KEY CONTACTS RULES:
-- Search the page for leadership/executive team members, specifically: Brand President, COO (Chief Operating Officer), VP of Operations, or similar operational leadership roles
-- If these exact titles aren't found, look for equivalent roles: President, CEO, Director of Operations, Head of Operations, SVP Operations, Chief Operations Officer
-- Only include contacts you can actually find evidence of on the page or can reasonably infer from the content
-- If NO leadership contacts are found, return an empty array: "key_contacts": []
-- For each contact, assign a relevance_score from 0-100 based on how likely they are to be the right buyer/decision-maker for the seller's product
-- Score factors: role alignment with operational software (higher for ops roles), seniority level, decision-making authority, industry fit
+- ONLY include people who hold one of these FOUR roles (or a very close equivalent):
+  1. CEO (Chief Executive Officer)
+  2. Brand President / President
+  3. COO (Chief Operating Officer)
+  4. VP of Operations / SVP Operations / Director of Operations / Head of Operations
+- Do NOT include any other roles. Specifically EXCLUDE: VP of Franchise Development, VP of Marketing, VP of Sales, CFO, CTO, HR, Legal, Franchise Development, Business Development, or any non-operations executive role.
+- Search ALL provided content — the page text, the leadership research from LinkedIn/web, and any about/team pages — for people matching ONLY the 4 target roles above.
+- Only include contacts you can actually find evidence of by name in the provided content. Do not fabricate names.
+- If NO contacts matching the 4 target roles are found, return an empty array: "key_contacts": []
+- For each contact, assign a relevance_score from 0-100 based on role alignment (CEO=80+, President=85+, COO=90+, VP Ops=95)
 - Sort by relevance_score descending (highest first)
 
 PRE-MEETING BRIEF RULES:

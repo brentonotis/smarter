@@ -35,14 +35,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'searchLeadership') {
         const name = request.companyName;
         Promise.all([
-            searchDDG(name + ' president COO "VP of operations" site:linkedin.com'),
-            searchDDG('"' + name + '" leadership team president COO'),
-            searchDDG('"' + name + '" "brand president" OR "chief operating officer" OR "vice president operations"'),
-        ]).then(([linkedin, web, exec]) => {
+            searchDDG(name + ' CEO OR president OR COO OR "VP of operations" site:linkedin.com'),
+            searchDDG(name + ' "chief executive officer" OR "brand president" OR "chief operating officer" OR "VP operations"'),
+            searchDDG(name + ' leadership team management executive'),
+            searchDDG(name + ' org chart OR "management team" OR executives'),
+            searchDDG('site:linkedin.com/in ' + name + ' CEO OR president OR COO OR operations'),
+        ]).then(([linkedin, titles, team, org, linkedinProfiles]) => {
             const parts = [];
             if (linkedin.length) parts.push('[LinkedIn Search]\n' + linkedin.join(' | '));
-            if (web.length) parts.push('[Web Search]\n' + web.join(' | '));
-            if (exec.length) parts.push('[Executive Search]\n' + exec.join(' | '));
+            if (titles.length) parts.push('[Executive Title Search]\n' + titles.join(' | '));
+            if (team.length) parts.push('[Leadership Team Search]\n' + team.join(' | '));
+            if (org.length) parts.push('[Org Chart Search]\n' + org.join(' | '));
+            if (linkedinProfiles.length) parts.push('[LinkedIn Profiles]\n' + linkedinProfiles.join(' | '));
             sendResponse({ result: parts.join('\n\n') });
         }).catch(() => {
             sendResponse({ result: '' });
