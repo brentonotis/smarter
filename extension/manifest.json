@@ -1,11 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Sales Copilot",
-  "version": "2.0",
+  "version": "2.1",
   "description": "AI-powered sales assistant — analyze any web page for outreach insights",
   "permissions": [
     "activeTab",
     "storage"
+  ],
+  "host_permissions": [
+    "https://html.duckduckgo.com/*"
   ],
   "action": {},
   "content_scripts": [

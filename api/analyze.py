@@ -437,27 +437,26 @@ class handler(BaseHTTPRequestHandler):
             # Fetch leadership/about pages to find executive contacts
             leadership_text = fetch_leadership_text(url)
 
-            # Extract company name from page text or company info for web search
+            # Client-side search results (from extension, not blocked by DDG)
+            client_search = body.get("leadership_search", "").strip()
+
+            # Server-side search fallback
             from urllib.parse import urlparse
-            company_name = ""
-            if company and company.get("name"):
-                # Use the prospect's domain as the company name for search
-                pass
             parsed_domain = urlparse(url)
             domain_name = parsed_domain.netloc.replace("www.", "").split(".")[0]
-            # Try to get company name from overview or use domain
             company_name = domain_name.capitalize()
-
-            # Search LinkedIn and web for leadership
-            web_leadership = search_leadership_web(company_name)
+            server_search = search_leadership_web(company_name)
 
             # Combine all leadership intel
-            all_leadership = leadership_text
-            if web_leadership:
-                if all_leadership:
-                    all_leadership += "\n\n" + web_leadership
-                else:
-                    all_leadership = web_leadership
+            all_leadership_parts = []
+            if leadership_text:
+                all_leadership_parts.append(leadership_text)
+            if client_search:
+                all_leadership_parts.append(client_search)
+            if server_search and not client_search:
+                # Only use server search if client search didn't return anything
+                all_leadership_parts.append(server_search)
+            all_leadership = "\n\n".join(all_leadership_parts)
 
             attempt = body.get("attempt", 0)
             analysis = analyze_page(url, page_text, company, attempt, all_leadership)

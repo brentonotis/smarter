@@ -10,3 +10,43 @@ chrome.action.onClicked.addListener(async (tab) => {
         console.error('Error handling extension click:', error);
     }
 });
+
+// ---------------------------------------------------------------------------
+// Leadership search — runs in background script (has host_permissions)
+// ---------------------------------------------------------------------------
+
+async function searchDDG(query) {
+    try {
+        const encoded = encodeURIComponent(query);
+        const url = 'https://html.duckduckgo.com/html/?q=' + encoded;
+        const resp = await fetch(url);
+        const html = await resp.text();
+
+        const matches = [...html.matchAll(/class="result__(?:title|snippet)"[^>]*>([\s\S]*?)<\/(?:a|td)>/g)];
+        return matches.slice(0, 10).map(m => {
+            return m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        }).filter(t => t.length > 10);
+    } catch (e) {
+        return [];
+    }
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'searchLeadership') {
+        const name = request.companyName;
+        Promise.all([
+            searchDDG(name + ' president COO "VP of operations" site:linkedin.com'),
+            searchDDG('"' + name + '" leadership team president COO'),
+            searchDDG('"' + name + '" "brand president" OR "chief operating officer" OR "vice president operations"'),
+        ]).then(([linkedin, web, exec]) => {
+            const parts = [];
+            if (linkedin.length) parts.push('[LinkedIn Search]\n' + linkedin.join(' | '));
+            if (web.length) parts.push('[Web Search]\n' + web.join(' | '));
+            if (exec.length) parts.push('[Executive Search]\n' + exec.join(' | '));
+            sendResponse({ result: parts.join('\n\n') });
+        }).catch(() => {
+            sendResponse({ result: '' });
+        });
+        return true; // keep message channel open for async response
+    }
+});

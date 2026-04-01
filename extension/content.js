@@ -138,6 +138,34 @@ function showAnalysisUI(container, apiUrl, company) {
 // API call
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Leadership search — delegates to background script (has host_permissions)
+// ---------------------------------------------------------------------------
+
+function searchLeadership(companyName) {
+    return new Promise(function (resolve) {
+        chrome.runtime.sendMessage(
+            { action: 'searchLeadership', companyName: companyName },
+            function (response) {
+                if (chrome.runtime.lastError || !response) {
+                    resolve('');
+                } else {
+                    resolve(response.result || '');
+                }
+            }
+        );
+    });
+}
+
+function getCompanyNameFromUrl(url) {
+    try {
+        var hostname = new URL(url).hostname.replace('www.', '');
+        return hostname.split('.')[0].charAt(0).toUpperCase() + hostname.split('.')[0].slice(1);
+    } catch (e) {
+        return '';
+    }
+}
+
 async function analyzeCurrentPage(apiUrl, pageUrl, company) {
     const resultDiv = document.getElementById('salescopilot-result');
     if (!resultDiv) return;
@@ -145,12 +173,21 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
     resultDiv.innerHTML = `
         <div style="text-align: center; padding: 20px;">
             <div class="salescopilot-spinner"></div>
-            <p style="color: #666; margin-top: 10px; font-size: 13px;">Analyzing page...</p>
+            <p style="color: #666; margin-top: 10px; font-size: 13px;">Researching leadership & analyzing page...</p>
         </div>
     `;
 
     try {
         const pageText = extractPageText(6000);
+
+        // Search for leadership contacts client-side (won't be blocked like server-side)
+        var companyName = getCompanyNameFromUrl(pageUrl);
+        var leadershipSearch = '';
+        try {
+            leadershipSearch = await searchLeadership(companyName);
+        } catch (e) {
+            // non-fatal
+        }
 
         const response = await fetch(apiUrl + '/api/analyze', {
             method: 'POST',
@@ -159,7 +196,8 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
                 url: pageUrl,
                 page_text: pageText,
                 company: company,
-                attempt: _scAttempt
+                attempt: _scAttempt,
+                leadership_search: leadershipSearch
             })
         });
 
