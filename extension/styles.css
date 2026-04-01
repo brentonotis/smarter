@@ -70,57 +70,115 @@
 /* --- Progress UI --- */
 
 .sc-progress-container {
-    padding: 16px 14px !important;
+    padding: 20px 14px !important;
 }
 
+/* Animated gradient bar (Claude-style) */
 .sc-progress-bar-track {
     width: 100% !important;
-    height: 6px !important;
-    background: #e9ecef !important;
-    border-radius: 3px !important;
+    height: 8px !important;
+    background: #1a1a2e !important;
+    border-radius: 4px !important;
     overflow: hidden !important;
-    margin-bottom: 14px !important;
+    margin-bottom: 18px !important;
+    position: relative !important;
 }
 
 .sc-progress-bar-fill {
     height: 100% !important;
     width: 0% !important;
-    background: linear-gradient(90deg, #007bff, #00c6ff) !important;
-    border-radius: 3px !important;
-    transition: width 0.4s ease !important;
+    border-radius: 4px !important;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    background: linear-gradient(90deg, #7c5cfc, #c084fc, #38bdf8, #34d399, #fbbf24, #f472b6, #7c5cfc) !important;
+    background-size: 300% 100% !important;
+    animation: sc-gradient-flow 2.5s linear infinite !important;
+    position: relative !important;
+}
+
+.sc-progress-bar-fill::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 30px !important;
+    height: 100% !important;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4)) !important;
+    border-radius: 0 4px 4px 0 !important;
+    animation: sc-glow-pulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes sc-gradient-flow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+}
+
+@keyframes sc-glow-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* Active step status text — Claude-style shimmer */
+.sc-status-text {
+    text-align: center !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    margin-bottom: 16px !important;
+    min-height: 20px !important;
+    background: linear-gradient(90deg, #7c5cfc, #c084fc, #38bdf8, #34d399, #c084fc, #7c5cfc) !important;
+    background-size: 300% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    animation: sc-text-shimmer 3s ease-in-out infinite !important;
+}
+
+@keyframes sc-text-shimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 150% 50%; }
+    100% { background-position: 300% 50%; }
 }
 
 .sc-progress-steps {
     display: flex !important;
     flex-direction: column !important;
-    gap: 8px !important;
+    gap: 6px !important;
 }
 
 .sc-step {
     display: flex !important;
     align-items: center !important;
     gap: 8px !important;
+    padding: 4px 6px !important;
+    border-radius: 6px !important;
+    transition: background 0.3s ease !important;
 }
 
 .sc-step-icon {
-    width: 18px !important;
-    height: 18px !important;
-    min-width: 18px !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
     border-radius: 50% !important;
-    border: 2px solid #ddd !important;
+    border: 2px solid #e0e0e0 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     font-size: 10px !important;
     color: transparent !important;
     transition: all 0.3s ease !important;
+    background: transparent !important;
 }
 
 .sc-step-active {
-    border-color: #007bff !important;
-    background: #007bff !important;
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2) !important;
-    animation: sc-pulse 1.2s ease-in-out infinite !important;
+    border-color: transparent !important;
+    background: linear-gradient(135deg, #7c5cfc, #c084fc, #38bdf8) !important;
+    background-size: 200% 200% !important;
+    animation: sc-icon-spin 1.5s linear infinite !important;
+    box-shadow: 0 0 8px rgba(124, 92, 252, 0.4) !important;
+}
+
+@keyframes sc-icon-spin {
+    0% { background-position: 0% 0%; transform: rotate(0deg); }
+    100% { background-position: 200% 200%; transform: rotate(360deg); }
 }
 
 .sc-step-done {
@@ -128,17 +186,24 @@
     background: #28a745 !important;
     color: white !important;
     animation: none !important;
-}
-
-@keyframes sc-pulse {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); }
-    50% { box-shadow: 0 0 0 6px rgba(0, 123, 255, 0.1); }
+    box-shadow: none !important;
+    transform: none !important;
 }
 
 .sc-step-text {
     font-size: 12px !important;
-    color: #aaa !important;
-    transition: color 0.3s ease !important;
+    color: #bbb !important;
+    transition: all 0.3s ease !important;
+}
+
+.sc-step-text-active {
+    color: #333 !important;
+    font-weight: 600 !important;
+}
+
+.sc-step-text-done {
+    color: #888 !important;
+    font-weight: 400 !important;
 }
 
 /* --- Structured result sections --- */

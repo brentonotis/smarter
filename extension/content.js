@@ -170,96 +170,120 @@ function getCompanyNameFromUrl(url) {
 // Progress UI helpers
 // ---------------------------------------------------------------------------
 
+var SC_STEPS = [
+    'Extracting page content...',
+    'Researching contacts on LinkedIn...',
+    'Scanning leadership pages...',
+    'Finding key insights...',
+    'Building pre-meeting brief...',
+    'Developing point of view...',
+];
+
 function renderProgressUI(container) {
-    container.innerHTML = `
-        <div class="sc-progress-container">
-            <div class="sc-progress-bar-track">
-                <div class="sc-progress-bar-fill" id="sc-progress-fill"></div>
-            </div>
-            <div class="sc-progress-steps" id="sc-progress-steps">
-                <div class="sc-step" id="sc-step-0">
-                    <span class="sc-step-icon sc-step-active"></span>
-                    <span class="sc-step-text">Extracting page content...</span>
-                </div>
-                <div class="sc-step" id="sc-step-1">
-                    <span class="sc-step-icon"></span>
-                    <span class="sc-step-text">Researching contacts on LinkedIn</span>
-                </div>
-                <div class="sc-step" id="sc-step-2">
-                    <span class="sc-step-icon"></span>
-                    <span class="sc-step-text">Scanning leadership pages</span>
-                </div>
-                <div class="sc-step" id="sc-step-3">
-                    <span class="sc-step-icon"></span>
-                    <span class="sc-step-text">Finding key insights</span>
-                </div>
-                <div class="sc-step" id="sc-step-4">
-                    <span class="sc-step-icon"></span>
-                    <span class="sc-step-text">Building pre-meeting brief</span>
-                </div>
-                <div class="sc-step" id="sc-step-5">
-                    <span class="sc-step-icon"></span>
-                    <span class="sc-step-text">Developing point of view</span>
-                </div>
-            </div>
-        </div>
-    `;
+    var stepsHtml = '';
+    for (var i = 0; i < SC_STEPS.length; i++) {
+        stepsHtml += '<div class="sc-step" id="sc-step-' + i + '">' +
+            '<span class="sc-step-icon"></span>' +
+            '<span class="sc-step-text">' + SC_STEPS[i].replace('...', '') + '</span>' +
+            '</div>';
+    }
+    container.innerHTML =
+        '<div class="sc-progress-container">' +
+            '<div class="sc-status-text" id="sc-status-text">' + SC_STEPS[0] + '</div>' +
+            '<div class="sc-progress-bar-track">' +
+                '<div class="sc-progress-bar-fill" id="sc-progress-fill"></div>' +
+            '</div>' +
+            '<div class="sc-progress-steps">' + stepsHtml + '</div>' +
+        '</div>';
 }
 
-function advanceProgress(stepIndex, totalSteps) {
+function setProgress(stepIndex) {
+    var total = SC_STEPS.length;
+
+    // Update shimmer status text
+    var statusText = document.getElementById('sc-status-text');
+    if (statusText) statusText.textContent = SC_STEPS[stepIndex] || '';
+
     // Mark previous steps as done
     for (var i = 0; i < stepIndex; i++) {
         var prev = document.getElementById('sc-step-' + i);
         if (prev) {
-            var icon = prev.querySelector('.sc-step-icon');
-            icon.className = 'sc-step-icon sc-step-done';
-            icon.textContent = '✓';
-            prev.querySelector('.sc-step-text').style.color = '#888';
+            prev.querySelector('.sc-step-icon').className = 'sc-step-icon sc-step-done';
+            prev.querySelector('.sc-step-icon').textContent = '✓';
+            var txt = prev.querySelector('.sc-step-text');
+            txt.className = 'sc-step-text sc-step-text-done';
         }
     }
+
     // Mark current step as active
     var current = document.getElementById('sc-step-' + stepIndex);
     if (current) {
         current.querySelector('.sc-step-icon').className = 'sc-step-icon sc-step-active';
-        current.querySelector('.sc-step-text').style.color = '#222';
-        current.querySelector('.sc-step-text').style.fontWeight = '600';
+        current.querySelector('.sc-step-text').className = 'sc-step-text sc-step-text-active';
     }
+
     // Update progress bar
     var fill = document.getElementById('sc-progress-fill');
     if (fill) {
-        var pct = Math.round(((stepIndex) / totalSteps) * 100);
-        fill.style.width = pct + '%';
+        var pct = Math.round(((stepIndex + 0.5) / total) * 100);
+        fill.style.width = Math.min(pct, 95) + '%';
     }
 }
 
-function completeAllProgress(totalSteps) {
-    for (var i = 0; i < totalSteps; i++) {
+function completeAllProgress() {
+    var total = SC_STEPS.length;
+    for (var i = 0; i < total; i++) {
         var step = document.getElementById('sc-step-' + i);
         if (step) {
-            var icon = step.querySelector('.sc-step-icon');
-            icon.className = 'sc-step-icon sc-step-done';
-            icon.textContent = '✓';
+            step.querySelector('.sc-step-icon').className = 'sc-step-icon sc-step-done';
+            step.querySelector('.sc-step-icon').textContent = '✓';
+            step.querySelector('.sc-step-text').className = 'sc-step-text sc-step-text-done';
         }
     }
     var fill = document.getElementById('sc-progress-fill');
     if (fill) fill.style.width = '100%';
+    var statusText = document.getElementById('sc-status-text');
+    if (statusText) statusText.textContent = 'Done!';
+}
+
+// Smoothly ticks progress through steps 2-4 while waiting for the API
+var _progressTimer = null;
+function startProgressTicker(startStep, endStep, durationMs) {
+    var stepsToFill = endStep - startStep;
+    var interval = durationMs / stepsToFill;
+    var currentStep = startStep;
+    _progressTimer = setInterval(function () {
+        if (currentStep <= endStep) {
+            setProgress(currentStep);
+            currentStep++;
+        } else {
+            clearInterval(_progressTimer);
+            _progressTimer = null;
+        }
+    }, interval);
+}
+
+function stopProgressTicker() {
+    if (_progressTimer) {
+        clearInterval(_progressTimer);
+        _progressTimer = null;
+    }
 }
 
 async function analyzeCurrentPage(apiUrl, pageUrl, company) {
     const resultDiv = document.getElementById('salescopilot-result');
     if (!resultDiv) return;
 
-    var totalSteps = 6;
     renderProgressUI(resultDiv);
 
     try {
         // Step 0: Extract page content
-        advanceProgress(0, totalSteps);
+        setProgress(0);
         const pageText = extractPageText(6000);
-        await _sleep(300); // brief pause so user sees the step
+        await _sleep(500);
 
-        // Step 1: Research contacts on LinkedIn
-        advanceProgress(1, totalSteps);
+        // Step 1: Research contacts on LinkedIn (real async work)
+        setProgress(1);
         var companyName = getCompanyNameFromUrl(pageUrl);
         var leadershipSearch = '';
         try {
@@ -268,11 +292,9 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
             // non-fatal
         }
 
-        // Step 2: Scanning leadership pages (happens server-side, but show progress)
-        advanceProgress(2, totalSteps);
-
-        // Step 3: Finding key insights (API call starts here)
-        advanceProgress(3, totalSteps);
+        // Step 2: Start API call — tick through steps 2-4 during the wait
+        setProgress(2);
+        startProgressTicker(2, 4, 12000); // tick through steps over ~12s
 
         const response = await fetch(apiUrl + '/api/analyze', {
             method: 'POST',
@@ -286,23 +308,21 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
             })
         });
 
-        // Step 4: Building pre-meeting brief
-        advanceProgress(4, totalSteps);
+        stopProgressTicker();
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.message || 'API returned status ' + response.status);
         }
 
+        // Step 5: Developing point of view (parsing response)
+        setProgress(5);
         const data = await response.json();
-
-        // Step 5: Developing point of view
-        advanceProgress(5, totalSteps);
-        await _sleep(400);
+        await _sleep(600);
 
         // All done
-        completeAllProgress(totalSteps);
-        await _sleep(300);
+        completeAllProgress();
+        await _sleep(400);
 
         if (data.status === 'success' && data.analysis) {
             renderStructuredResults(resultDiv, data.analysis);
@@ -310,6 +330,7 @@ async function analyzeCurrentPage(apiUrl, pageUrl, company) {
             throw new Error(data.message || 'Analysis failed');
         }
     } catch (error) {
+        stopProgressTicker();
         resultDiv.innerHTML = `
             <div style="color: #dc3545; text-align: center; padding: 10px; font-size: 13px;">
                 <p><strong>Error:</strong> ${escapeHtml(error.message)}</p>
